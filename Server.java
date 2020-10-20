@@ -1,5 +1,6 @@
 import java.net.*;
 import java.io.*;
+import java.util.*;
 
 public class Server {
 
@@ -12,7 +13,25 @@ public class Server {
         System.out.println("Accepted connection: " + socket);
 
         //create new file 
-        File transferFile = new File ("testFile.txt");
+        // File transferFile;
+        String fileName = "";
+
+        try (InputStream input = new FileInputStream("config.properties")) {
+
+            Properties prop = new Properties();
+
+            // load a properties file
+            prop.load(input);
+
+            // get the property value and print it out
+            System.out.println(prop.getProperty("FileName"));
+            fileName = prop.getProperty("FileName");
+
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+
+        File transferFile = new File(fileName);
 
         //contains temporary data
         byte [] bytearray = new byte [(int)transferFile.length()];
