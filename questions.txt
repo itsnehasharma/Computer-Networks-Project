@@ -1,0 +1,3 @@
+is the message a string? 
+are you able to put the code for both a client and a server in the same doc? otherwise how can you make it a peer?
+how can you specify sending only certain bits of a file?

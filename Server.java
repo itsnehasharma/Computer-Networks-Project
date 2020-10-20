@@ -1,6 +1,7 @@
 import java.net.*;
 import java.io.*;
 import java.util.*;
+import java.lang.*;
 
 public class Server {
 
@@ -15,6 +16,7 @@ public class Server {
         //create new file 
         // File transferFile;
         String fileName = "";
+        int pieceSize = 0;
 
         try (InputStream input = new FileInputStream("config.properties")) {
 
@@ -26,6 +28,8 @@ public class Server {
             // get the property value and print it out
             System.out.println(prop.getProperty("FileName"));
             fileName = prop.getProperty("FileName");
+            pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
+            
 
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -35,10 +39,11 @@ public class Server {
 
         //contains temporary data
         byte [] bytearray = new byte [(int)transferFile.length()];
-
+        
         //read bytes from file into the byte array
         FileInputStream fin = new FileInputStream(transferFile);
         BufferedInputStream bin = new BufferedInputStream(fin); 
+
         bin.read(bytearray,0,bytearray.length); 
 
         //output stream provides a channel to communicate with the client side
@@ -46,7 +51,8 @@ public class Server {
         System.out.println("Sending Files..."); 
 
         //write the data from bytearray onto the output stream
-        os.write(bytearray,0,bytearray.length); 
+        // os.write(bytearray,0,bytearray.length); 
+        os.write(bytearray,0,pieceSize); //only sending part of the file
 
         //close objects
         os.flush(); 
