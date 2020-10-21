@@ -25,8 +25,7 @@ public class Server {
             // load a properties file
             prop.load(input);
 
-            // get the property value and print it out
-            System.out.println(prop.getProperty("FileName"));
+            //get properties
             fileName = prop.getProperty("FileName");
             pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
             
