@@ -7,13 +7,15 @@ public class Client implements Runnable{
     // private String fileName = "";
     // private int pieceSize = 0;
     private int fileSize = 0;
+    private String ipOrHostname = "";
     private String name = "";
     Thread t;
 
 
-    public Client (int portNum, String name) {
+    public Client (int portNum, String name, String ip) {
         this.portNum = portNum;
         this.name = name;
+        this.ipOrHostname = ip;
         t = new Thread(this, "client");
 
         try (InputStream input = new FileInputStream("config.properties")) {
@@ -37,12 +39,13 @@ public class Client implements Runnable{
     }
 
     public Socket createConnection(int portNum) throws IOException{
-        Socket clientSocket = new Socket("127.0.0.1", portNum);
+        // Socket clientSocket = new Socket("127.0.0.1", portNum);
+        Socket clientSocket = new Socket(ipOrHostname, portNum);
         System.out.println("Client created connection");
 
         if (clientSocket.isConnected()) return clientSocket;
         else {
-            System.out.println("connection failed");
+            System.out.println("client connection failed");
             return null;
         }
     }
@@ -53,7 +56,8 @@ public class Client implements Runnable{
         int currentTot = 0; 
 
         //define a new socket on local ip 
-        Socket socket = new Socket("127.0.0.1", 15123);
+        // Socket socket = new Socket("127.0.0.1", 15123);
+        Socket socket = new Socket(ipOrHostname, portNum);
 
         //create a new byte array for the expected file size to hold temporary data 
         byte [] bytearray = new byte[fileSize];
@@ -93,8 +97,7 @@ public class Client implements Runnable{
     public void run() {
 
         try {
-
-            createConnection(portNum);
+            // createConnection(portNum);
             requestFile();
 
         } catch (IOException ioe){

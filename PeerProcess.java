@@ -1,12 +1,17 @@
 import java.io.IOException;
+import java.net.*;
 
+//as of now this class starts client. please run start server first.
 public class PeerProcess {
 
     public static void main(String[] args) throws IOException{
-        Server server = new Server(15123);
-        Client client1 = new Client(15123, args[0]);
-        Client client2 = new Client(15123, args[1]);
-        Client client3 = new Client(15123, args[2]);
+
+        int portNum = Integer.valueOf(args[0]);
+        String clientName = args[1];
+        String hostname = args[2];
+        // Socket socket = new Socket("thunder.cise.ufl.edu", portNum);
+        
+        Client client = new Client (portNum, clientName, hostname);
 
     }
     

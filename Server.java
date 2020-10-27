@@ -10,10 +10,36 @@ public class Server implements Runnable{
     private OutputStream os = null;
     private String fileName = "";
     private int pieceSize = 0;
+    private InetAddress ip = null;
+    private String host = "";
     Thread t;
 
-    public Server(int portNum) {
+    public Server(int portNum, String ip) throws UnknownHostException{
         this.portNum = portNum;
+        this.ip = InetAddress.getByName(ip);
+        t = new Thread(this, "server");
+        try (InputStream input = new FileInputStream("config.properties")) {
+
+            Properties prop = new Properties();
+
+            // load a properties file
+            prop.load(input);
+
+            //get properties
+            this.fileName = prop.getProperty("FileName");
+            this.pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
+            
+
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+
+        t.start();
+    }
+
+    public Server(int portNum) throws UnknownHostException{
+        this.portNum = portNum;
+        // this.ip = InetAddress.getByName(ip);
         t = new Thread(this, "server");
         try (InputStream input = new FileInputStream("config.properties")) {
 
@@ -35,7 +61,7 @@ public class Server implements Runnable{
     }
  
     public void createServerSocket(int portNum) throws IOException {
-        this.serverSocket = new ServerSocket(portNum);
+        this.serverSocket = new ServerSocket(portNum, 100, ip);
         System.out.println("Created server socket");
     }
 
@@ -85,7 +111,7 @@ public class Server implements Runnable{
 
             createServerSocket(portNum);
             while (true) {
-                System.out.println("waiting for connections");
+                System.out.println("server is waiting for connections on port " + portNum);
                 Socket s = acceptConnection();
                 transferFile(s);
                 shutdown(s);
@@ -93,7 +119,7 @@ public class Server implements Runnable{
 
         } 
         catch (IOException ioe){
-            System.out.println("ioexception");
+            System.out.println("error at run(), could not accept connection.");
         }
         
     }
