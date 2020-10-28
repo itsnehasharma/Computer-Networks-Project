@@ -1,0 +1,6 @@
+{
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar",
+        "/Users/nehasharma/Downloads/jsch-0.1.54.jar"
+    ]
+}

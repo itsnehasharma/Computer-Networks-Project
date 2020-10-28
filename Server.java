@@ -106,22 +106,23 @@ public class Server implements Runnable{
     }
 
     public void run(){
-
         try {
-
             createServerSocket(portNum);
             while (true) {
                 System.out.println("server is waiting for connections on port " + portNum);
                 Socket s = acceptConnection();
-                transferFile(s);
-                shutdown(s);
+                while(true){
+                    transferFile(s);
+                    shutdown(s);
+
+                }
+                
             }
 
         } 
         catch (IOException ioe){
             System.out.println("error at run(), could not accept connection.");
         }
-        
     }
 
     // public static void main(String[] args) throws IOException {
