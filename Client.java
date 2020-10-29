@@ -1,13 +1,11 @@
 import java.net.*;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+
 import java.io.*;
 
 public class Client {
 	Socket requestSocket; // socket connect to the server
-	ObjectOutputStream out; // stream write to the socket
-	ObjectInputStream in; // stream read from the socket
 	DataInputStream din;
 	DataOutputStream dout;
 	String message; // message send to the server
@@ -16,34 +14,45 @@ public class Client {
 	boolean recHandshake = false;
 	int peerIDInt = -1;
 	int portNum = -1;
-	private InputStream is;
+	int serverId = -1; //will be used to determine if the server is correct
+	// private InputStream is;
 	ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
-
+	String hostname = "localhost";
 
 	// main method
 	public static void main(String args[]) {
 
+		//this will all be commented out, main will not be run when peer process runs 
+
 		int portNum = Integer.valueOf(args[0]);
+		System.out.println(portNum);
 		int peerIDInt = Integer.valueOf(args[1]);
 		Client client = new Client(portNum, peerIDInt);
 		client.run();
 	}
 
-
-	public Client(int peerIDInt, int portNum) {
-
-		this.peerIDInt = peerIDInt;
+	public Client(int portNum, int peerIDInt) { //used when running java Client
 		this.portNum = portNum;
+		this.peerIDInt = peerIDInt;
 
+	}
+
+	public Client(int peerIDInt, String hostname, int portNum){ //used when running java PeerProcess
+		this.peerIDInt = peerIDInt;
+		this.hostname = hostname;
+		this.portNum = portNum;
 	}
 
 	void run() {
 		try {
 			// create a socket to connect to the server
+			//different variations of connecting to a host 
 			// requestSocket = new Socket("storm.cise.ufl.edu", 8000);
 			// requestSocket = new Socket("localhost", 8000);
-			requestSocket = new Socket("localhost", 8000);
-			System.out.println("Connected to localhost in port 8000");
+			// requestSocket = new Socket("localhost", portNum);
+
+			requestSocket = new Socket(hostname, portNum); //used in peerprocess.java implementation
+			System.out.println("Connected to localhost in port " + portNum);
 
 			// out = new ObjectOutputStream(requestSocket.getOutputStream());
 			// out.flush();
@@ -53,64 +62,48 @@ public class Client {
 			din = new DataInputStream(requestSocket.getInputStream());
 			dout = new DataOutputStream(requestSocket.getOutputStream());
 
-			// handshake();
-
-			// initialize inputStream and outputStream
-
-			// get Input from standard input
-			BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
-
 			while (true) {
 
-				if (!recHandshake) {
-					// ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
-					String headerStr = "P2PFILESHARINGPROJ";
-					byte[] header = headerStr.getBytes();
-					byte [] zerobits = new byte[10];
-					Arrays.fill(zerobits, (byte) 0);
-					byte[] peerID = ByteBuffer.allocate(4).putInt(peerIDInt).array();
+				if (!recHandshake) { //first time connection, need to send handshake 
 
+					//creating a byte array message to send as the handshake 
+
+					String headerStr = "P2PFILESHARINGPROJ"; //header
+					byte[] header = headerStr.getBytes(); //header to bytes
+					byte[] zerobits = new byte[10]; // 10 byte zero bits
+					Arrays.fill(zerobits, (byte) 0);
+					byte[] peerID = ByteBuffer.allocate(4).putInt(peerIDInt).array(); //peer ID in byte array format 
+
+					//write all information to a byte array 
 					byteOS.write(header);
-       				byteOS.write(zerobits);
-        			byteOS.write(peerID);
+					byteOS.write(zerobits);
+					byteOS.write(peerID);
 
 					byte[] handshake = byteOS.toByteArray();
-					
+
 					System.out.println("client sending handshake message: " + Arrays.toString(handshake));
 
-					sendMessage(handshake);
-
+					sendMessage(handshake); //client sends handshake message to server 
 
 					System.out.println("client waiting for handshake");
 
-					byte[] incomingHandshake = new byte[32];
-					// is.read(incomingHandshake);
-					din.read(incomingHandshake);
+					byte[] incomingHandshake = new byte[32]; //empty byte array for incoming handshake 
+
+					din.read(incomingHandshake); //read in the incoming handshake 
+
 					System.out.println("Received message from server: " + Arrays.toString(incomingHandshake));
-					// System.out.println("Receive message: " + message + " from client " + no);
-					
-					recHandshake = true;
+
+					recHandshake = true; //handshake received, do not do this part again 
 					byteOS.flush();
 				} else {
 
-					//if else statements for message types 
-					System.out.print("Hello, please input a sentence: ");
-					// read a sentence from the standard input
-					message = bufferedReader.readLine();
-					// Send the sentence to the server
-					sendMessage(message);
-					// Receive the upperCase sentence from the server
-					MESSAGE = (String) in.readObject();
-					// show the message to the user
-					System.out.println("Receive message: " + MESSAGE);
+					// this space will be for all messages that are not the handshake 
 
 				}
 
 			}
 		} catch (ConnectException e) {
 			System.err.println("Connection refused. You need to initiate a server first.");
-		} catch (ClassNotFoundException e) {
-			System.err.println("Class not found");
 		} catch (UnknownHostException unknownHost) {
 			System.err.println("You are trying to connect to an unknown host!");
 		} catch (IOException ioException) {
@@ -118,8 +111,6 @@ public class Client {
 		} finally {
 			// Close connections
 			try {
-				in.close();
-				out.close();
 				requestSocket.close();
 			} catch (IOException ioException) {
 				ioException.printStackTrace();
@@ -128,47 +119,12 @@ public class Client {
 	}
 
 	// send a message to the output stream
-	void sendMessage(String msg) {
-
-		try {
-			// stream write the message
-			out.writeObject(msg);
-			out.flush();
-		} catch (IOException ioException) {
-			System.out.print("caught exception");
-			ioException.printStackTrace();
-		}
-	}
-
 	void sendMessage(byte[] msg) {
 		try {
-			// stream write the message
-			// out.writeObject(msg);
-			// out.flush();
 			dout.write(msg);
 			dout.flush();
 		} catch (IOException ioException) {
 			ioException.printStackTrace();
 		}
 	}
-
-	// void handshake() throws IOException {
-
-	// ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
-	// // byte zeroBits[] = new byte[8];
-	// byteOS.write("P2PFILESHARINGPROJ".getBytes());
-	// // byteOS.write(zeroBits);
-	// byteOS.write(peerID);
-
-	// handshake = byteOS.toByteArray();
-	// sendMessage(handshake);
-
-	// System.out.println("client waiting for handshake");
-	// byte[] h = new byte[32];
-	// is.read(h, 0, 32);
-	// // String handshake = in.readObject().toString();
-	// System.out.println("handshake: " + h);
-
-	// }
-
 }
