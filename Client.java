@@ -1,150 +1,174 @@
 import java.net.*;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.io.*;
-import java.util.*;
-public class Client implements Runnable{
 
-    private int portNum = 0;
-    // private String fileName = "";
-    // private int pieceSize = 0;
-    private int fileSize = 0;
-    private String ipOrHostname = "";
-    private String name = "";
-    Thread t;
+public class Client {
+	Socket requestSocket; // socket connect to the server
+	ObjectOutputStream out; // stream write to the socket
+	ObjectInputStream in; // stream read from the socket
+	DataInputStream din;
+	DataOutputStream dout;
+	String message; // message send to the server
+	String MESSAGE; // capitalized message read from the server
+	boolean sentHandshake = false;
+	boolean recHandshake = false;
+	int peerIDInt = -1;
+	int portNum = -1;
+	private InputStream is;
+	ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
 
 
-    public Client (int portNum, String name, String ip) {
-        this.portNum = portNum;
-        this.name = name;
-        this.ipOrHostname = ip;
-        t = new Thread(this, "client");
+	// main method
+	public static void main(String args[]) {
 
-        try (InputStream input = new FileInputStream("config.properties")) {
+		int portNum = Integer.valueOf(args[0]);
+		int peerIDInt = Integer.valueOf(args[1]);
+		Client client = new Client(portNum, peerIDInt);
+		client.run();
+	}
 
-            Properties prop = new Properties();
 
-            // load a properties file
-            prop.load(input);
+	public Client(int peerIDInt, int portNum) {
 
-            //get properties
-            // this.fileName = prop.getProperty("FileName");
-            // this.pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
-            this.fileSize = Integer.valueOf(prop.getProperty("FileSize"));
-            
+		this.peerIDInt = peerIDInt;
+		this.portNum = portNum;
 
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
+	}
 
-        t.start();
-    }
+	void run() {
+		try {
+			// create a socket to connect to the server
+			// requestSocket = new Socket("storm.cise.ufl.edu", 8000);
+			// requestSocket = new Socket("localhost", 8000);
+			requestSocket = new Socket("localhost", 8000);
+			System.out.println("Connected to localhost in port 8000");
 
-    public Socket createConnection(int portNum) throws IOException{
-        // Socket clientSocket = new Socket("127.0.0.1", portNum);
-        Socket clientSocket = new Socket(ipOrHostname, portNum);
-        System.out.println("Client created connection");
+			// out = new ObjectOutputStream(requestSocket.getOutputStream());
+			// out.flush();
+			// in = new ObjectInputStream(requestSocket.getInputStream());
+			// is = requestSocket.getInputStream();
+			byteOS.flush();
+			din = new DataInputStream(requestSocket.getInputStream());
+			dout = new DataOutputStream(requestSocket.getOutputStream());
 
-        if (clientSocket.isConnected()) return clientSocket;
-        else {
-            System.out.println("client connection failed");
-            return null;
-        }
-    }
+			// handshake();
 
-    public void requestFile() throws IOException {
+			// initialize inputStream and outputStream
 
-        int bytesRead; //contains the current statistics of the bytes read from input channel ie 
-        int currentTot = 0; 
+			// get Input from standard input
+			BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
 
-        //define a new socket on local ip 
-        // Socket socket = new Socket("127.0.0.1", 15123);
-        Socket socket = new Socket(ipOrHostname, portNum);
+			while (true) {
 
-        //create a new byte array for the expected file size to hold temporary data 
-        byte [] bytearray = new byte[fileSize];
+				if (!recHandshake) {
+					// ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
+					String headerStr = "P2PFILESHARINGPROJ";
+					byte[] header = headerStr.getBytes();
+					byte [] zerobits = new byte[10];
+					Arrays.fill(zerobits, (byte) 0);
+					byte[] peerID = ByteBuffer.allocate(4).putInt(peerIDInt).array();
 
-        //create a new input stread to read from the socket 
-        InputStream is = socket.getInputStream();
+					byteOS.write(header);
+       				byteOS.write(zerobits);
+        			byteOS.write(peerID);
 
-        //take from the socket into a file output to copy.doc
-        
-        // System.out.println(System.getProperty("user.dir"));
-        File newDir = new File(System.getProperty("user.dir") + "/" + name);
-        boolean createDir = newDir.mkdir();
-        // System.out.println(createDir);
-        String pathname = newDir.getAbsolutePath() + "/copy.txt";
-        System.out.println(pathname);
-        FileOutputStream fos = new FileOutputStream(pathname);
-        BufferedOutputStream bos = new BufferedOutputStream(fos);
+					byte[] handshake = byteOS.toByteArray();
+					
+					System.out.println("client sending handshake message: " + Arrays.toString(handshake));
 
-        //total number of bytes read in the input stream
-        bytesRead = is.read(bytearray, 0, bytearray.length);
-        currentTot = bytesRead; //initially total is the number of bytes read
+					sendMessage(handshake);
 
-        //continue to read from the input stream until there is not data left on the stream
-        do {
-            bytesRead = 
-                is.read(bytearray, currentTot, (bytearray.length-currentTot));
-            if (bytesRead >= 0) currentTot += bytesRead;
 
-        } while (bytesRead > -1);
+					System.out.println("client waiting for handshake");
 
-        bos.write(bytearray, 0, currentTot);
-        bos.flush();
-        bos.close();
-        socket.close();
-    }
+					byte[] incomingHandshake = new byte[32];
+					// is.read(incomingHandshake);
+					din.read(incomingHandshake);
+					System.out.println("Received message from server: " + Arrays.toString(incomingHandshake));
+					// System.out.println("Receive message: " + message + " from client " + no);
+					
+					recHandshake = true;
+					byteOS.flush();
+				} else {
 
-    public void run() {
+					//if else statements for message types 
+					System.out.print("Hello, please input a sentence: ");
+					// read a sentence from the standard input
+					message = bufferedReader.readLine();
+					// Send the sentence to the server
+					sendMessage(message);
+					// Receive the upperCase sentence from the server
+					MESSAGE = (String) in.readObject();
+					// show the message to the user
+					System.out.println("Receive message: " + MESSAGE);
 
-        try {
-            // createConnection(portNum);
-            requestFile();
+				}
 
-        } catch (IOException ioe){
-            System.err.println("ioe error");;
-        }
-        
+			}
+		} catch (ConnectException e) {
+			System.err.println("Connection refused. You need to initiate a server first.");
+		} catch (ClassNotFoundException e) {
+			System.err.println("Class not found");
+		} catch (UnknownHostException unknownHost) {
+			System.err.println("You are trying to connect to an unknown host!");
+		} catch (IOException ioException) {
+			ioException.printStackTrace();
+		} finally {
+			// Close connections
+			try {
+				in.close();
+				out.close();
+				requestSocket.close();
+			} catch (IOException ioException) {
+				ioException.printStackTrace();
+			}
+		}
+	}
 
-    }
+	// send a message to the output stream
+	void sendMessage(String msg) {
 
-    
+		try {
+			// stream write the message
+			out.writeObject(msg);
+			out.flush();
+		} catch (IOException ioException) {
+			System.out.print("caught exception");
+			ioException.printStackTrace();
+		}
+	}
+
+	void sendMessage(byte[] msg) {
+		try {
+			// stream write the message
+			// out.writeObject(msg);
+			// out.flush();
+			dout.write(msg);
+			dout.flush();
+		} catch (IOException ioException) {
+			ioException.printStackTrace();
+		}
+	}
+
+	// void handshake() throws IOException {
+
+	// ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
+	// // byte zeroBits[] = new byte[8];
+	// byteOS.write("P2PFILESHARINGPROJ".getBytes());
+	// // byteOS.write(zeroBits);
+	// byteOS.write(peerID);
+
+	// handshake = byteOS.toByteArray();
+	// sendMessage(handshake);
+
+	// System.out.println("client waiting for handshake");
+	// byte[] h = new byte[32];
+	// is.read(h, 0, 32);
+	// // String handshake = in.readObject().toString();
+	// System.out.println("handshake: " + h);
+
+	// }
+
 }
-
-//     public static void main(String[] args) throws IOException{
-        
-//         int filesize=2022386; 
-//         int bytesRead; //contains the current statistics of the bytes read from input channel ie 
-//         int currentTot = 0; //total number of bytes read
-
-//         //define a new socket on local ip 
-//         Socket socket = new Socket("127.0.0.1", 15123);
-
-//         //create a new byte array for the expected file size to hold temporary data 
-//         byte [] bytearray = new byte[filesize];
-
-//         //create a new input stread to read from the socket 
-//         InputStream is = socket.getInputStream();
-
-//         //take from the socket into a file output to copy.doc
-//         FileOutputStream fos = new FileOutputStream("copy.txt");
-//         BufferedOutputStream bos = new BufferedOutputStream(fos);
-
-//         //total number of bytes read in the input stream
-//         bytesRead = is.read(bytearray, 0, bytearray.length);
-//         currentTot = bytesRead; //initially total is the number of bytes read
-
-//         //continue to read from the input stream until there is not data left on the stream
-//         do {
-//             bytesRead = 
-//                 is.read(bytearray, currentTot, (bytearray.length-currentTot));
-//             if (bytesRead >= 0) currentTot += bytesRead;
-
-//         } while (bytesRead > -1);
-
-//         bos.write(bytearray, 0, currentTot);
-//         bos.flush();
-//         bos.close();
-//         socket.close();
-       
-//     }
-// }

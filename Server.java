@@ -1,185 +1,204 @@
 import java.net.*;
 import java.io.*;
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
-public class Server implements Runnable{
+public class Server {
 
-    private int portNum = 0;
-    private ServerSocket serverSocket = null;
-    // private Socket socket = null;
-    private OutputStream os = null;
-    private String fileName = "";
-    private int pieceSize = 0;
-    private InetAddress ip = null;
-    private String host = "";
-    Thread t;
+	private static final int sPort = 8000; // The server will be listening on this port number
 
-    public Server(int portNum, String ip) throws UnknownHostException{
-        this.portNum = portNum;
-        this.ip = InetAddress.getByName(ip);
-        t = new Thread(this, "server");
-        try (InputStream input = new FileInputStream("config.properties")) {
+	public static void main(String[] args) throws Exception {
+		System.out.println("The server is running.");
+		int portNum = Integer.valueOf(args[0]);
+		int peerIDInt = Integer.valueOf(args[1]);
+		// ServerSocket listener = new ServerSocket(sPort);
+		ServerSocket listener = new ServerSocket(8000);
+		int clientNum = 1;
 
-            Properties prop = new Properties();
+		try {
+			while (true) {
+				// new Handler(listener.accept(), clientNum).start();
+				new Handler(listener.accept(), peerIDInt).start();
+				// System.out.println("Client " + clientNum + " is connected!");
+				System.out.println("Client " + peerIDInt + " is connected!");
+				// clientNum++;
+			}
+		} finally {
+			listener.close();
+		}
 
-            // load a properties file
-            prop.load(input);
+	}
 
-            //get properties
-            this.fileName = prop.getProperty("FileName");
-            this.pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
-            
+	/**
+	 * A handler thread class. Handlers are spawned from the listening loop and are
+	 * responsible for dealing with a single client's requests.
+	 */
+	private static class Handler extends Thread {
+		private String message; // message received from the client
+		private String MESSAGE; // uppercase message send to the client
+		private Socket connection;
+		private ObjectInputStream in; // stream read from the socket
+		private ObjectOutputStream out; // stream write to the socket
+		private FileOutputStream fout;
+		private DataOutputStream dout;
+		private DataInputStream din;
+		private int no; // The index number of the client
+		private boolean recHandshake = false;
+		// private byte[] handshakeMessage;
+		private InputStream is;
+		private int peerIDInt = -1;
+		private byte[] msg = new byte[32];
 
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
+		// public Handler(Socket connection, int no) {
+		// this.connection = connection;
+		// this.no = no;
+		// }
 
-        t.start();
-    }
+		public Handler(Socket connection, int peerIDInt) {
+			this.connection = connection;
+			this.peerIDInt = peerIDInt;
+		}
 
-    public Server(int portNum) throws UnknownHostException{
-        this.portNum = portNum;
-        // this.ip = InetAddress.getByName(ip);
-        t = new Thread(this, "server");
-        try (InputStream input = new FileInputStream("config.properties")) {
+		public void run() {
 
-            Properties prop = new Properties();
+			try {
+				// initialize Input and Output streams
+				// out = new ObjectOutputStream(connection.getOutputStream());
+				// out.flush();
+				// in = new ObjectInputStream(connection.getInputStream());
+				// is = connection.getInputStream();
+				// fout = new FileOutputStream(connection.getOutputStream());
+				dout = new DataOutputStream(connection.getOutputStream());
+				din = new DataInputStream(connection.getInputStream());
 
-            // load a properties file
-            prop.load(input);
+				// byteIn = new ByteArrayInputStream(connection.getInputStream());
+				// byteIn = new input
 
-            //get properties
-            this.fileName = prop.getProperty("FileName");
-            this.pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
-            
+				while (true) {
 
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
+					// receive the message sent from the client
+					// message = (String) in.readObject();
 
-        t.start();
-    }
- 
-    public void createServerSocket(int portNum) throws IOException {
-        this.serverSocket = new ServerSocket(portNum, 100, ip);
-        System.out.println("Created server socket");
-    }
+					if (!recHandshake) {
+						System.out.println("server waiting for handshake");
+						// in.read(msg);
+						// is.read(msg);
+						din.read(msg);
+						// String msgStr = new String(msg, StandardCharsets.UTF_8);
+						// System.out.println("Receive message: " + message + " from client " + no);
+						System.out.println("Received message from client " + peerIDInt + ": " + Arrays.toString(msg));
+						// System.out.println("Receive message: " + msgStr + " from client " + no);
+						ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
+						// byte zeroBits[] = new byte[8];
+						String headerStr = "P2PFILESHARINGPROJ";
+						byte[] header = headerStr.getBytes();
+						byte[] zerobits = new byte[10];
+						Arrays.fill(zerobits, (byte) 0);
+						byte[] peerID = ByteBuffer.allocate(4).putInt(peerIDInt).array();
 
-    public Socket acceptConnection() throws IOException {
-        Socket socket = serverSocket.accept();
-        System.out.println("accepted connection on socket: " + socket);
+						byteOS.write(header);
+						byteOS.write(zerobits);
+						byteOS.write(peerID);
 
-        if (socket.isConnected()) return socket;
-        else {
-            System.out.println("socket connection failed"); 
-            return null;
-        }
-    }
+						byte[] handshake = byteOS.toByteArray();
 
-    public void transferFile(Socket socket) throws IOException{
+						System.out.println("server sending handshake message: " + Arrays.toString(handshake));
 
-        File transferFile = new File(this.fileName);
+						sendMessage(handshake);
 
-        //contains temporary data
-        byte [] bytearray = new byte [(int)transferFile.length()];
-        
+						msg = new byte[12];
 
-        //read bytes from file into the byte array
-        FileInputStream fin = new FileInputStream(transferFile);
-        BufferedInputStream bin = new BufferedInputStream(fin); 
+					} else {
+						// is.read(msg, 0, msg.length);
+						// // show the message to the user
+						// String msgStr = new String(msg, StandardCharsets.UTF_8);
+						// // System.out.println("Receive message: " + message + " from client " + no);
+						// System.out.println("Receive message: " + msgStr + " from client " + no);
+						// // Capitalize all letters in the message
+						// // MESSAGE = message.toUpperCase();
+						// MESSAGE = msgStr.toUpperCase();
+						// // send MESSAGE back to the client
+						// sendMessage(MESSAGE);
 
-        bin.read(bytearray,0,bytearray.length); 
+					}
+					recHandshake = true;
+				}
+			} catch (IOException ioException) {
+				System.out.println("Disconnect with Client " + no);
+			}
+			// catch (ClassNotFoundException e) {
+			// // TODO Auto-generated catch block
+			// e.printStackTrace();
+			// }
+			finally {
+				// Close connections
+				try {
+					in.close();
+					out.close();
+					connection.close();
+				} catch (IOException ioException) {
+					System.out.println("Disconnect with Client " + no);
+				}
+			}
+		}
 
-        //output stream provides a channel to communicate with the client side
-        OutputStream os = socket.getOutputStream(); 
-        System.out.println("Sending Files..."); 
+		// // send a message to the output stream
+		// public void sendMessage(String msg) {
+		// try {
+		// out.writeObject(msg);
+		// out.flush();
 
-        //write the data from bytearray onto the output stream
-        // os.write(bytearray,0,bytearray.length); 
-        os.write(bytearray,0,pieceSize); //only sending part of the file  
-        bin.close();
-    }
+		// System.out.println("Send message: " + msg + " to Client " + no);
+		// } catch (IOException ioException) {
+		// ioException.printStackTrace();
+		// }
+		// }
 
-    public void shutdown(Socket socket) throws IOException{
-        // this.os.close();
-        socket.close();
-    }
+		void sendMessage(byte[] msg) {
+			try {
+				dout.write(msg);
+				
+			} catch (IOException ioException) {
+				ioException.printStackTrace();
+			}
+		}
 
-    public void run(){
-        try {
-            createServerSocket(portNum);
-            while (true) {
-                System.out.println("server is waiting for connections on port " + portNum);
-                Socket s = acceptConnection();
-                while(true){
-                    transferFile(s);
-                    shutdown(s);
+		// public void handshake() throws ClassNotFoundException, IOException {
+		// System.out.println("server waiting for handshake");
+		// byte[] h = new byte[32];
+		// is.read(h, 0, 32);
+		// // String handshake = in.readObject().toString();
+		// System.out.println("handshake: " + h);
 
-                }
-                
-            }
+		// ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
+		// byte zeroBits[] = new byte[8];
+		// byteOS.write("P2PFILESHARINGPROJ".getBytes());
+		// byteOS.write(zeroBits);
+		// byteOS.write(peerID);
 
-        } 
-        catch (IOException ioe){
-            System.out.println("error at run(), could not accept connection.");
-        }
-    }
+		// byte[] handshake = byteOS.toByteArray();
+		// sendMessage(handshake);
+		// }
 
-    // public static void main(String[] args) throws IOException {
+		// public void handshake(byte[] msg) throws ClassNotFoundException, IOException
+		// {
 
-    //     ServerSocket serverSocket = new ServerSocket(15123);
+		// // byte[] h = new byte[32];
+		// // is.read(h, 0, 32);
+		// // // String handshake = in.readObject().toString();
+		// // System.out.println("handshake: " + h);
 
-    //     //wait for client connection, and then accept connection 
-    //     Socket socket = serverSocket.accept();
-    //     System.out.println("Accepted connection: " + socket);
+		// ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
+		// byte zeroBits[] = new byte[8];
+		// byteOS.write("P2PFILESHARINGPROJ".getBytes());
+		// byteOS.write(zeroBits);
+		// byteOS.write(peerID);
 
-    //     //create new file 
-    //     // File transferFile;
-    //     String fileName = "";
-    //     int pieceSize = 0;
+		// byte[] handshake = byteOS.toByteArray();
+		// sendMessage(handshake);
+		// }
 
-    //     try (InputStream input = new FileInputStream("config.properties")) {
+	}
 
-    //         Properties prop = new Properties();
-
-    //         // load a properties file
-    //         prop.load(input);
-
-    //         //get properties
-    //         fileName = prop.getProperty("FileName");
-    //         pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
-            
-
-    //     } catch (IOException ex) {
-    //         ex.printStackTrace();
-    //     }
-
-    //     File transferFile = new File(fileName);
-
-    //     //contains temporary data
-    //     byte [] bytearray = new byte [(int)transferFile.length()];
-        
-    //     //read bytes from file into the byte array
-    //     FileInputStream fin = new FileInputStream(transferFile);
-    //     BufferedInputStream bin = new BufferedInputStream(fin); 
-
-    //     bin.read(bytearray,0,bytearray.length); 
-
-    //     //output stream provides a channel to communicate with the client side
-    //     OutputStream os = socket.getOutputStream(); 
-    //     System.out.println("Sending Files..."); 
-
-    //     //write the data from bytearray onto the output stream
-    //     // os.write(bytearray,0,bytearray.length); 
-    //     os.write(bytearray,0,pieceSize); //only sending part of the file
-
-    //     //close objects
-    //     os.flush(); 
-    //     socket.close(); 
-    //     System.out.println("File transfer complete");
-
-
-
-        
-    // }
 }
