@@ -46,6 +46,8 @@ public class Server {
 		private boolean recHandshake = false;
 		private int peerIDInt = -1;
 		private byte[] msg = new byte[32];
+		private String fileName = "testFile.txt"; //this will be changed to be taken from properties
+		private int pieceSize = 32; //this will be changed to be taken from properties 
 
 		// public Handler(Socket connection, int no) {
 		// this.connection = connection;
@@ -100,7 +102,23 @@ public class Server {
 					} else {
 						
 						//space used for all other messages that are not handshake 
+						File transferFile = new File(this.fileName);
 
+						//temp data
+						byte[] byteArr = new byte [(int)transferFile.length()];
+
+						//read bytes from file into byte array 
+						FileInputStream fin = new FileInputStream(transferFile);
+						BufferedInputStream bin = new BufferedInputStream(fin);
+
+						bin.read(byteArr, 0, byteArr.length);
+
+						//output stream provides a channel to communicate with the client side 
+						OutputStream os = connection.getOutputStream();
+						System.out.println("sending files...");
+
+						os.write(byteArr,0,pieceSize);
+						bin.close();
 					}
 					recHandshake = true;
 				}

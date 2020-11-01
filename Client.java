@@ -99,6 +99,35 @@ public class Client {
 
 					// this space will be for all messages that are not the handshake 
 
+					//create a new director with the name of the peer
+					File newDir = new File(System.getProperty("user.dir") + "/" + this.peerIDInt); 
+					boolean createDir = newDir.mkdir();
+
+					//full path of file to copy to 
+					String pathname = newDir.getAbsolutePath() + "/copy.txt";
+
+					System.out.println(pathname); //checking 
+
+					FileOutputStream fos = new FileOutputStream(pathname);
+					BufferedOutputStream bos = new BufferedOutputStream(fos);
+
+					byte[] byteArr = new byte[10000232]; //change this to properties file size
+					
+					//total number of bytes read in thh input stream 
+					int bytesRead = din.read(byteArr, 0, byteArr.length); 
+					int currentTot = bytesRead;
+
+					//continue to read from the input stream until there is not data left on the stream
+					do {
+						bytesRead = 
+							din.read(byteArr, currentTot, (byteArr.length-currentTot));
+						if (bytesRead >= 0) currentTot += bytesRead;
+			
+					} while (bytesRead > -1);
+
+					bos.write(byteArr,0,currentTot);
+					bos.flush();
+					bos.close();
 				}
 
 			}
