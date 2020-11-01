@@ -18,6 +18,7 @@
   </component>
   <component name="PropertiesComponent">
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="com.intellij.ide.scratch.LRUPopupBuilder$1/New Scratch File" value="JAVA" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
@@ -32,6 +33,10 @@
     <servers />
   </component>
   <component name="WindowStateProjectService">
+    <state x="414" y="174" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1604162829911">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state x="414" y="174" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1920.1040@0.0.1920.1040" timestamp="1604162829911" />
     <state x="740" y="274" key="FileChooserDialogImpl" timestamp="1603472776632">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
@@ -40,5 +45,9 @@
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="685" y="143" key="new project wizard/0.0.1920.1040@0.0.1920.1040" timestamp="1603472781156" />
+    <state x="623" y="225" width="672" height="678" key="search.everywhere.popup" timestamp="1604161944369">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state x="623" y="225" width="672" height="678" key="search.everywhere.popup/0.0.1920.1040@0.0.1920.1040" timestamp="1604161944369" />
   </component>
 </project>
