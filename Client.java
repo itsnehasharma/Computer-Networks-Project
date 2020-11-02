@@ -18,15 +18,26 @@ public class Client {
 	// private InputStream is;
 	ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
 	String hostname = "localhost";
+	byte[] messageLength;
+	byte[] messageType;
+	byte[] indexField = new byte[4];
+	Scanner sc = new Scanner(System.in);
+	int fileSize = 148481; // change this to pull from config properties
+	byte[] finalFileInBytes = new byte[fileSize];
+	int pieceSize = 64;
+
+
 
 	// main method
 	public static void main(String args[]) {
 
 		// this will all be commented out, main will not be run when peer process runs
 
-		int portNum = Integer.valueOf(args[0]);
+		// int portNum = Integer.valueOf(args[0]);
+		int portNum = 8000;
 		System.out.println(portNum);
-		int peerIDInt = Integer.valueOf(args[1]);
+		// int peerIDInt = Integer.valueOf(args[1]);
+		int peerIDInt = 1002;
 		Client client = new Client(portNum, peerIDInt);
 		client.run();
 	}
@@ -63,6 +74,9 @@ public class Client {
 			dout = new DataOutputStream(requestSocket.getOutputStream());
 			boolean clientLoop = true;
 
+			FileOutputStream fos = new FileOutputStream("copy.txt");
+			BufferedOutputStream bos = new BufferedOutputStream(fos);
+
 			while (clientLoop) {
 
 				if (!recHandshake) { // first time connection, need to send handshake
@@ -96,7 +110,6 @@ public class Client {
 					din.read(incomingHandshake); // read in the incoming handshake
 
 					
-
 					System.out.println("Received message from server: " + Arrays.toString(incomingHandshake));
 
 					byte[] checkServerID = Arrays.copyOfRange(incomingHandshake, 28, 32);
@@ -115,32 +128,53 @@ public class Client {
 
 				} else { //every message that is not the handshake 
 
-					int fileSize = 148481; // change this to pull from config properties
-					byte[] finalFileInBytes = new byte[fileSize];
+					byteOS.reset();
+					System.out.println("starting byte: ");
+					int start = sc.nextInt();
+					messageLength = ByteBuffer.allocate(4).putInt(128).array();
+					byte six = 0b110; //six in binary because 1 byte 
+					messageType = ByteBuffer.allocate(1).put(six).array(); //putting int 6 for request 
+					indexField = ByteBuffer.allocate(4).putInt(start).array(); //index of starting point
 
-					FileOutputStream fos = new FileOutputStream("copy.txt");
-					BufferedOutputStream bos = new BufferedOutputStream(fos);
+					//writing request message to the byte output stream 
+					byteOS.write(messageLength);
+					byteOS.write(messageType);
+					byteOS.write(indexField);
 
-					boolean quit = false;
-					Scanner sc = new Scanner(System.in);
 
-					//change this input loop to pass this through in a message 
-					while (!quit) {
-						System.out.println("starting byte: ");
-						int start = sc.nextInt();
-						System.out.println("ending byte");
-						int end = sc.nextInt();
+					byte [] msg = byteOS.toByteArray();
+					sendMessage(msg);
 
-						// this writes INTO the array final file in bytes at byte[start] until byte[end]
-						din.read(finalFileInBytes, start, end);
-						System.out.println("quit?");
-						quit = sc.nextBoolean();
+					//request message has been sent, now wait for response of piece 
+					din.read(finalFileInBytes, start, pieceSize); 
+
+					System.out.println("quit?");
+					boolean quit = sc.nextBoolean();
+
+					if (quit) {
+						bos.write(finalFileInBytes, 0, 64); //writes final into copy.txt. change 160 based on chunks sent. 
+						sc.close();
+						bos.close();
+						clientLoop = false; //this is just here for the purpose of testing 
 					}
 
-					bos.write(finalFileInBytes, 0, 160);
-					sc.close();
-					bos.close();
-					clientLoop = false; //this is just here for the purpose of testing 
+					// boolean quit = false;
+					
+
+					// //change this input loop to pass this through in a message 
+					// while (!quit) {
+					// 	System.out.println("starting byte: ");
+					// 	int start = sc.nextInt();
+					// 	System.out.println("ending byte");
+					// 	int end = sc.nextInt();
+
+					// 	// this writes INTO the array final file in bytes at byte[start] until byte[end]
+					// 	din.read(finalFileInBytes, start, end);
+					// 	System.out.println("quit?");
+					// 	quit = sc.nextBoolean();
+					// }
+
+				
 				}
 
 			}

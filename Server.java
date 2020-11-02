@@ -12,9 +12,11 @@ public class Server {
 	public static void main(String[] args) throws Exception {
 		System.out.println("The server is running.");
 
-		int portNum = Integer.valueOf(args[0]);
-		int peerIDInt = Integer.valueOf(args[1]);
+		// int portNum = Integer.valueOf(args[0]);
+		// int peerIDInt = Integer.valueOf(args[1]);
 
+		int portNum = 8000;
+		int peerIDInt = 1001;
 		// ServerSocket listener = new ServerSocket(sPort);
 		ServerSocket listener = new ServerSocket(portNum);
 		int clientNum = 1;
@@ -48,8 +50,8 @@ public class Server {
 		private int peerIDInt = -1;
 		private byte[] msg = new byte[32];
 		private String fileName = "testFile.txt"; //this will be changed to be taken from properties
-		private int pieceSize = 32; //this will be changed to be taken from properties 
-
+		private int pieceSize = 64; //this will be changed to be taken from properties 
+		Scanner sc = new Scanner(System.in);
 		// public Handler(Socket connection, int no) {
 		// this.connection = connection;
 		// this.no = no;
@@ -68,6 +70,18 @@ public class Server {
 				dout = new DataOutputStream(connection.getOutputStream());
 				din = new DataInputStream(connection.getInputStream());
 				boolean serverLoop = true;
+
+				File file = new File("alice.txt");
+						byte [] fileInBytes = new byte[(int)file.length()];
+
+						FileInputStream fis = new FileInputStream(file);
+						BufferedInputStream bis = new BufferedInputStream(fis);
+
+						//fileInBytes contains the file alice.txt in bytes
+						bis.read(fileInBytes, 0, fileInBytes.length);
+
+						boolean quit = false;
+
 				while (serverLoop) {
 
 					if (!recHandshake) {
@@ -102,39 +116,41 @@ public class Server {
 
 					} else {
 
-						File file = new File("alice.txt");
-						byte [] fileInBytes = new byte[(int)file.length()];
+						//THIS NEEDS TO BE TESTED 
 
-						FileInputStream fis = new FileInputStream(file);
-						BufferedInputStream bis = new BufferedInputStream(fis);
+						din.read(msg); //waiting for a client request 
 
-						//fileInBytes contains the file alice.txt in bytes
-						bis.read(fileInBytes, 0, fileInBytes.length);
+						//this is used for testing. instead we should have a map with all the types of messages 
+						byte six = 0b110;
+						byte[] requestMsg = ByteBuffer.allocate(1).put(six).array();
+						System.out.println("request message: " + Arrays.toString(requestMsg));
+ 
+						byte[] messageType = Arrays.copyOfRange(msg, 4, 5);
 
-						boolean quit = false;
-						Scanner sc = new Scanner(System.in);
+						System.out.println("message type: " + Arrays.toString(messageType));
 
-						while (!quit) {
-							System.out.println("starting byte: ");
-							int start = sc.nextInt();
-							System.out.println("ending byte");
-							int end = sc.nextInt();
-			
-							//writes to the output stream a chunk from starting byte to ending byte 
-							dout.write(fileInBytes,start,end);
-			
-							//this needs to change from user entering quit to the process itself sending messages 
+						if (Arrays.equals(requestMsg, messageType)) {
+							System.out.println ("request message received ");
+							byte[] indexToSend = Arrays.copyOfRange(msg, 8, 12);
+							int index = ByteBuffer.wrap(indexToSend).getInt();
+
+							dout.write(fileInBytes,index,pieceSize); //change this to use the send message method
+
 							System.out.println("quit?");
 							quit = sc.nextBoolean();
+
+							if (quit){
+								dout.flush();
+								bis.close();
+								sc.close();
+								System.out.println("File Transfer Complete.");
+								serverLoop = false;
+							}
 						}
-
-						dout.flush();
-						bis.close();
-						sc.close();
-						System.out.println("File Transfer Complete.");
-
-						serverLoop = false; //this is just here for the purpose of testing
-
+						else {
+							System.out.println("wrong message type received.");
+							serverLoop = false; //this is just here for the purpose of testing
+						}
 					}
 					recHandshake = true;
 				}
@@ -144,8 +160,8 @@ public class Server {
 			finally {
 				// Close connections
 				try {
-					in.close();
-					out.close();
+					din.close();
+					dout.close();
 					connection.close();
 				} catch (IOException ioException) {
 					System.out.println("Disconnect with Client " + no);
@@ -186,3 +202,19 @@ public class Server {
 
 						// os.write(byteArr,0,pieceSize);
 						// bin.close();
+
+
+
+
+						// while (!quit) {
+						// 	System.out.println("starting byte: ");
+						// 	int start = sc.nextInt();
+						// 	System.out.println("ending byte");
+						// 	int end = sc.nextInt();
+			
+						// 	//writes to the output stream a chunk from starting byte to ending byte 
+						// 	dout.write(fileInBytes,start,end);
+			
+						// 	//this needs to change from user entering quit to the process itself sending messages 
+						
+						// }
