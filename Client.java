@@ -74,6 +74,9 @@ public class Client {
 					byte[] zerobits = new byte[10]; // 10 byte zero bits
 					Arrays.fill(zerobits, (byte) 0);
 					byte[] peerID = ByteBuffer.allocate(4).putInt(peerIDInt).array(); // peer ID in byte array format
+					
+
+					byte [] serverPeerID = ByteBuffer.allocate(4).putInt(1001).array(); //used for testing only
 
 					// write all information to a byte array
 					byteOS.write(header);
@@ -92,11 +95,25 @@ public class Client {
 
 					din.read(incomingHandshake); // read in the incoming handshake
 
+					
+
 					System.out.println("Received message from server: " + Arrays.toString(incomingHandshake));
 
+					byte[] checkServerID = Arrays.copyOfRange(incomingHandshake, 28, 32);
+					System.out.println("Receieved peer id:" + Arrays.toString(checkServerID));
+					System.out.println("Expected peer id:" + Arrays.toString(serverPeerID));
+					if (Arrays.equals(serverPeerID, checkServerID)) {
+						System.out.println("peer ID Matches");
+						
+					} else {
+						System.out.println("incorrect peerID received");
+						//do not set rec handshake to true, we will have to do the handshake again
+						//this probably doesnt work right yet 
+					}			
 					recHandshake = true; // handshake received, do not do this part again
 					byteOS.flush();
-				} else {
+
+				} else { //every message that is not the handshake 
 
 					int fileSize = 148481; // change this to pull from config properties
 					byte[] finalFileInBytes = new byte[fileSize];

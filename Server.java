@@ -13,7 +13,7 @@ public class Server {
 		System.out.println("The server is running.");
 
 		int portNum = Integer.valueOf(args[0]);
-		// int peerIDInt = Integer.valueOf(args[1]);
+		int peerIDInt = Integer.valueOf(args[1]);
 
 		// ServerSocket listener = new ServerSocket(sPort);
 		ServerSocket listener = new ServerSocket(portNum);
@@ -21,8 +21,8 @@ public class Server {
 
 		try {
 			while (true) {
-				new Handler(listener.accept(), clientNum).start();
-				// new Handler(listener.accept(), peerIDInt).start();
+				// new Handler(listener.accept(), clientNum).start();
+				new Handler(listener.accept(), peerIDInt).start();
 				System.out.println("Client " + clientNum + " is connected!");
 				// System.out.println("Client " + peerIDInt + " is connected!");
 				// clientNum++;
