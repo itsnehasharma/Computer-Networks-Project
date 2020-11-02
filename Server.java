@@ -2,6 +2,7 @@ import java.net.*;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Scanner;
 
 public class Server {
 
@@ -12,18 +13,18 @@ public class Server {
 		System.out.println("The server is running.");
 
 		int portNum = Integer.valueOf(args[0]);
-		int peerIDInt = Integer.valueOf(args[1]);
+		// int peerIDInt = Integer.valueOf(args[1]);
 
 		// ServerSocket listener = new ServerSocket(sPort);
 		ServerSocket listener = new ServerSocket(portNum);
-		// int clientNum = 1;
+		int clientNum = 1;
 
 		try {
 			while (true) {
-				// new Handler(listener.accept(), clientNum).start();
-				new Handler(listener.accept(), peerIDInt).start();
-				// System.out.println("Client " + clientNum + " is connected!");
-				System.out.println("Client " + peerIDInt + " is connected!");
+				new Handler(listener.accept(), clientNum).start();
+				// new Handler(listener.accept(), peerIDInt).start();
+				System.out.println("Client " + clientNum + " is connected!");
+				// System.out.println("Client " + peerIDInt + " is connected!");
 				// clientNum++;
 			}
 		} finally {
@@ -66,8 +67,8 @@ public class Server {
 				// initialize Input and Output streams
 				dout = new DataOutputStream(connection.getOutputStream());
 				din = new DataInputStream(connection.getInputStream());
-
-				while (true) {
+				boolean serverLoop = true;
+				while (serverLoop) {
 
 					if (!recHandshake) {
 						// client sends the first handshake message
@@ -100,25 +101,40 @@ public class Server {
 						msg = new byte[12]; //setting a new empty 
 
 					} else {
-						
-						//space used for all other messages that are not handshake 
-						File transferFile = new File(this.fileName);
 
-						//temp data
-						byte[] byteArr = new byte [(int)transferFile.length()];
+						File file = new File("alice.txt");
+						byte [] fileInBytes = new byte[(int)file.length()];
 
-						//read bytes from file into byte array 
-						FileInputStream fin = new FileInputStream(transferFile);
-						BufferedInputStream bin = new BufferedInputStream(fin);
+						FileInputStream fis = new FileInputStream(file);
+						BufferedInputStream bis = new BufferedInputStream(fis);
 
-						bin.read(byteArr, 0, byteArr.length);
+						//fileInBytes contains the file alice.txt in bytes
+						bis.read(fileInBytes, 0, fileInBytes.length);
 
-						//output stream provides a channel to communicate with the client side 
-						OutputStream os = connection.getOutputStream();
-						System.out.println("sending files...");
+						boolean quit = false;
+						Scanner sc = new Scanner(System.in);
 
-						os.write(byteArr,0,pieceSize);
-						bin.close();
+						while (!quit) {
+							System.out.println("starting byte: ");
+							int start = sc.nextInt();
+							System.out.println("ending byte");
+							int end = sc.nextInt();
+			
+							//writes to the output stream a chunk from starting byte to ending byte 
+							dout.write(fileInBytes,start,end);
+			
+							//this needs to change from user entering quit to the process itself sending messages 
+							System.out.println("quit?");
+							quit = sc.nextBoolean();
+						}
+
+						dout.flush();
+						bis.close();
+						sc.close();
+						System.out.println("File Transfer Complete.");
+
+						serverLoop = false; //this is just here for the purpose of testing
+
 					}
 					recHandshake = true;
 				}
@@ -148,3 +164,25 @@ public class Server {
 	}
 
 }
+
+
+/// old testing code 
+
+	// //space used for all other messages that are not handshake 
+						// File transferFile = new File(this.fileName);
+
+						// //temp data
+						// byte[] byteArr = new byte [(int)transferFile.length()];
+
+						// //read bytes from file into byte array 
+						// FileInputStream fin = new FileInputStream(transferFile);
+						// BufferedInputStream bin = new BufferedInputStream(fin);
+
+						// bin.read(byteArr, 0, byteArr.length);
+
+						// //output stream provides a channel to communicate with the client side 
+						// OutputStream os = connection.getOutputStream();
+						// System.out.println("sending files...");
+
+						// os.write(byteArr,0,pieceSize);
+						// bin.close();
