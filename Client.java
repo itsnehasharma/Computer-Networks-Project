@@ -1,6 +1,8 @@
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Properties;
 import java.util.Scanner;
 import java.io.*;
 
@@ -22,11 +24,13 @@ public class Client {
 	byte[] messageType;
 	byte[] indexField = new byte[4];
 	Scanner sc = new Scanner(System.in);
-	int fileSize = 148481; // change this to pull from config properties
-	byte[] finalFileInBytes = new byte[fileSize];
-	int pieceSize = 64;
-
-
+	// int fileSize = 148481; // change this to pull from config properties
+	int fileSize = -1;
+	byte[] finalFileInBytes;
+	// int pieceSize = 64;
+	int pieceSize = -1;
+	HashMap<String, byte[]> messageTypeMap = createMessageHashMap();
+	private String fileName = "";
 
 	// main method
 	public static void main(String args[]) {
@@ -54,6 +58,8 @@ public class Client {
 		this.portNum = portNum;
 	}
 
+	//write a method to get information from config file 
+
 	void run() {
 		try {
 			// create a socket to connect to the server
@@ -61,20 +67,50 @@ public class Client {
 			// requestSocket = new Socket("storm.cise.ufl.edu", 8000);
 			// requestSocket = new Socket("localhost", 8000);
 			// requestSocket = new Socket("localhost", portNum);
-
+			
+			System.out.println("created a new client");
+			System.out.println("I am peer " + peerIDInt + " trying to connect to " + hostname + " at port " + portNum);
 			requestSocket = new Socket(hostname, portNum); // used in peerprocess.java implementation
 			System.out.println("Connected to localhost in port " + portNum);
+
+			try (InputStream input = new FileInputStream("config.properties")) {
+
+				Properties prop = new Properties();
+	
+				// load a properties file
+				prop.load(input);
+	
+				//get properties
+				this.fileName = prop.getProperty("FileName");
+				this.pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
+				this.fileSize = Integer.valueOf(prop.getProperty("FileSize"));
+				finalFileInBytes = new byte[fileSize];
+				
+	
+			} catch (IOException ex) {
+				ex.printStackTrace();
+			}
 
 			// out = new ObjectOutputStream(requestSocket.getOutputStream());
 			// out.flush();
 			// in = new ObjectInputStream(requestSocket.getInputStream());
 			// is = requestSocket.getInputStream();
-			byteOS.flush();
+			byteOS.reset();
 			din = new DataInputStream(requestSocket.getInputStream());
 			dout = new DataOutputStream(requestSocket.getOutputStream());
+			dout.flush();
 			boolean clientLoop = true;
 
-			FileOutputStream fos = new FileOutputStream("copy.txt");
+			// FileOutputStream fos = new FileOutputStream("copy.txt");
+			// BufferedOutputStream bos = new BufferedOutputStream(fos);
+
+			//setting up folder for copy to be made in 
+			File newDir = new File(System.getProperty("user.dir") + "/" + peerIDInt);
+			boolean createDir = newDir.mkdir();
+
+			String pathname = newDir.getAbsolutePath() + "/" + fileName;
+
+			FileOutputStream fos = new FileOutputStream(pathname);
 			BufferedOutputStream bos = new BufferedOutputStream(fos);
 
 			while (clientLoop) {
@@ -124,37 +160,71 @@ public class Client {
 						//this probably doesnt work right yet 
 					}			
 					recHandshake = true; // handshake received, do not do this part again
-					byteOS.flush();
+					byteOS.reset();
 
 				} else { //every message that is not the handshake 
 
-					byteOS.reset();
+					//client sends the first message
+					// this is the request functionality, needs to be placed in some sort of organization
+
 					System.out.println("starting byte: ");
 					int start = sc.nextInt();
 					messageLength = ByteBuffer.allocate(4).putInt(128).array();
-					byte six = 0b110; //six in binary because 1 byte 
-					messageType = ByteBuffer.allocate(1).put(six).array(); //putting int 6 for request 
+					messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("request")).array(); //should be 6
 					indexField = ByteBuffer.allocate(4).putInt(start).array(); //index of starting point
 
 					//writing request message to the byte output stream 
+					byteOS.reset();
 					byteOS.write(messageLength);
 					byteOS.write(messageType);
 					byteOS.write(indexField);
 
-
 					byte [] msg = byteOS.toByteArray();
-					sendMessage(msg);
+					sendMessage(msg); //requesting the piece 
+
+					//waiting for a reply from the server
+					byte[] incomingMessage = new byte[128]; //will need to change the size of this 
+					System.out.println("waiting for server reply");
+					// din.read(incomingMessage);
+					din.read(incomingMessage, 0, 9); //read from 0 to 8 for the header, 9 exclusive 
+					System.out.println("read first 9 bytes");
+					// [0 - 3] message length
+					// [4] message type
+					// [5 - 8] index field 
+
+					byte[] messageType = Arrays.copyOfRange(incomingMessage, 4, 5); //getting the message type
+
+					if (Arrays.equals(messageType, messageTypeMap.get("choke"))){
+						System.out.println ("choke functionality");
+					}
+					else if (Arrays.equals(messageType, messageTypeMap.get("unchoke"))){
+						System.out.println ("unchoke functionality");
+					}
+					else if (Arrays.equals(messageType, messageTypeMap.get("have"))){
+						System.out.println ("have functionality");
+					}
+					else if (Arrays.equals(messageType, messageTypeMap.get("piece"))){
+						System.out.println ("piece functionality");
+
+						byte[] fileIndex = Arrays.copyOfRange(incomingMessage, 5, 9);
+						int index = ByteBuffer.wrap(fileIndex).getInt();
+						din.read(finalFileInBytes, index, pieceSize); //should read into file byte array from specified index
+					}
 
 					//request message has been sent, now wait for response of piece 
-					din.read(finalFileInBytes, start, pieceSize); 
+					// din.read(finalFileInBytes, start, pieceSize); 
 
 					System.out.println("quit?");
 					boolean quit = sc.nextBoolean();
 
 					if (quit) {
-						bos.write(finalFileInBytes, 0, 64); //writes final into copy.txt. change 160 based on chunks sent. 
+						//when done, we need to write to the client's folder 
+						bos.write(finalFileInBytes, 0, 128); //writes final into copy.txt. change 160 based on chunks sent. 
 						sc.close();
 						bos.close();
+						din.close();
+						dout.flush();
+						dout.close();
 						clientLoop = false; //this is just here for the purpose of testing 
 					}
 
@@ -173,8 +243,6 @@ public class Client {
 					// 	System.out.println("quit?");
 					// 	quit = sc.nextBoolean();
 					// }
-
-				
 				}
 
 			}
@@ -202,6 +270,29 @@ public class Client {
 		} catch (IOException ioException) {
 			ioException.printStackTrace();
 		}
+	}
+
+	HashMap<String, byte[]> createMessageHashMap() {
+		HashMap<String, byte[]> map = new HashMap<String, byte[]>();
+		byte zero = 0b000;
+		byte one = 0b001;
+		byte two = 0b010;
+		byte three = 0b011;
+		byte four = 0b100;
+		byte five = 0b101;
+		byte six = 0b110;
+		byte seven = 0b111;
+		// byte zeroArr[] = ByteBuffer.allocate(1).put(zero).array();
+		map.put("choke", ByteBuffer.allocate(1).put(zero).array());
+		map.put("unchoke", ByteBuffer.allocate(1).put(one).array());
+		map.put("interested", ByteBuffer.allocate(1).put(two).array());
+		map.put("not_interested", ByteBuffer.allocate(1).put(three).array());
+		map.put("have", ByteBuffer.allocate(1).put(four).array());
+		map.put("bitfield", ByteBuffer.allocate(1).put(five).array());
+		map.put("request", ByteBuffer.allocate(1).put(six).array());
+		map.put("piece", ByteBuffer.allocate(1).put(seven).array());
+
+		return map;
 	}
 }
 

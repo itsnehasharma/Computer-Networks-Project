@@ -1,3 +1,2 @@
 1001 localhost 6008
-1002 storm.cise.ufl.edu 6008
-1003 thunder.cise.ufl.edu 6008
+1002 localhost 6010
