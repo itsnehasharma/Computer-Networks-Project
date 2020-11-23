@@ -161,7 +161,7 @@ public class Client {
 
 					// this is the request functionality only for now.
 
-					// instead of taking user input, the p2p process will use the bittorrent protocol to request the specific bytes
+					// inst	ead of taking user input, the p2p process will use the bittorrent protocol to request the specific bytes
 					System.out.print("request index: ");
 					int start = sc.nextInt();
 					System.out.println();
