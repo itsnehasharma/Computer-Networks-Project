@@ -4,7 +4,7 @@ import java.util.HashSet;
 import java.util.Scanner;
 
 public class FileSplit{
-    public static HashSet<String> fileChunks = new HashSet();
+    public static HashSet<String> fileChunks = new HashSet<String>(); //maybe use a map instead
     public static void main(String[] args) throws IOException {
         System.out.println("Please enter the path to the file you wish to split: ");
         Scanner scanner =new Scanner(System.in);
@@ -18,8 +18,9 @@ public class FileSplit{
             int bytes = 0;
             while ((bytes=bufferedInputStream.read(buffer))>0){
                 String part = Integer.toString(counter++);
-                fileChunks.add(part);
-                File generated = new File(file.getParent(), part);
+                fileChunks.add(part); //this is a map that has all the chunks 
+                File generated = new File(file.getParent(), part); //name of the file is part
+                //maybe instead of generating a new file we can add all the pieces a map
                 try (FileOutputStream fileOutputStream = new FileOutputStream(generated)){
                     fileOutputStream.write(buffer,0,bytes);
                 }
@@ -27,6 +28,8 @@ public class FileSplit{
         }catch (IOException e){
             e.printStackTrace();
         }
+
+    
         System.out.println("File has been split into chunks");
     }
 }
