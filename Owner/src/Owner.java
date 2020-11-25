@@ -14,7 +14,6 @@ public class Owner {
     Owner(){
 
     }
-
     public static void main(String[] args) throws IOException {
         port = Integer.parseInt(args[0]);
 

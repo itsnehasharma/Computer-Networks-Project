@@ -162,6 +162,7 @@ public class Client {
 					// this is the request functionality only for now.
 
 					// inst	ead of taking user input, the p2p process will use the bittorrent protocol to request the specific bytes
+					// all of this needs to be moved into after the bitfield 
 					System.out.print("request index: ");
 					int start = sc.nextInt();
 					System.out.println();
@@ -198,6 +199,7 @@ public class Client {
 						System.out.println ("unchoke functionality");
 					}
 					else if (Arrays.equals(messageType, messageTypeMap.get("have"))){
+						// in response to this, send back interested or not interested
 						System.out.println ("have functionality");
 					}
 					else if (Arrays.equals(messageType, messageTypeMap.get("piece"))){
@@ -209,6 +211,8 @@ public class Client {
 						if (index+pieceSize > largestByte){
 							largestByte = index+pieceSize; //only up to the largest byte will be exported to the file.
 						}
+
+						//send another request message
 					}
 
 					//request message has been sent, now wait for response of piece 

@@ -6,7 +6,7 @@ import java.util.HashSet;
 import java.util.Scanner;
 
 public class FileSplit{
-    public static HashSet<String> fileChunks = new HashSet();
+    public static HashSet<String> fileChunks = new HashSet<String>();
     public static void main(String[] args) throws IOException {
 
         System.out.println("Please enter the path to the file you wish to split: ");
@@ -17,6 +17,7 @@ public class FileSplit{
 
         int size = 1024*100; //This is the size of the chunks that the file will be split into
         //1024 Bytes * 100 = 100 KB
+        //size in KB
         byte[] buffer = new byte[size]; //Byte array
 
         int counter = 1;
@@ -27,6 +28,7 @@ public class FileSplit{
             int bytes = 0; //Var for naming files
             //Code to write each chunk in a different file with "counter" value as name of file
             while ((bytes=bufferedInputStream.read(buffer))>0){
+                System.out.println(bytes);
                 String part = Integer.toString(counter++);
                 fileChunks.add(part); //Hashmap that keeps track of all files, to be used when transferring files
                 //Each peer will have this and they will keep track of the chunks they receive in this hashmap

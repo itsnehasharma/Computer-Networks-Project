@@ -30,7 +30,6 @@ public class Server {
 		} finally {
 			listener.close();
 		}
-
 	}
 
 	/**
@@ -43,6 +42,7 @@ public class Server {
 		private DataInputStream din;
 		private int no; // The index number of the client
 		private boolean recHandshake = false;
+		private boolean sentBitfield = false;
 
 		private byte[] incomingMsg = new byte[32]; // 32 set for handshake message
 		// private String fileName = "alice.txt"; // for testing
@@ -136,6 +136,10 @@ public class Server {
 
 						incomingMsg = new byte[128]; //reset incoming message buffer, might need to change this number 
 
+					} else if (!sentBitfield) {
+						//iterate through a map of parts and add to the message if it exists
+
+						sentBitfield = true;
 					} else {
 						// might need to change the size of message
 						din.read(incomingMsg); // waiting for a client request
@@ -145,12 +149,15 @@ public class Server {
 
 						//check the message type
 						if (Arrays.equals(incomingMessageType, messageTypeMap.get("interested"))) {
+
+
 							System.out.println("interested functionality");
 						} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("not_interested"))) {
 							System.out.println("not_interested functionality");
 						} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("have"))) {
 							System.out.println("have functionality");
 						} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("request"))) {
+							//if not choked 
 							System.out.println("request message received ");
 							byte[] indexToSend = Arrays.copyOfRange(incomingMsg, 5, 9);
 							int index = ByteBuffer.wrap(indexToSend).getInt();
