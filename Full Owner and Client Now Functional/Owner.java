@@ -15,15 +15,15 @@ public class Owner {
 
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws Exception {
         port = Integer.parseInt(args[0]);
+        //port = 2000;
 
         System.out.println("File Owner is now running");
         System.out.println("Please enter filepath :");
 
         Scanner scanner = new Scanner(System.in);
         path = scanner.nextLine();
-
         File file = new File(path); //Taking file as input
 
         int size = 1024*100; //This is the size of the chunks that the file will be split into
@@ -37,7 +37,7 @@ public class Owner {
 
             int bytes = 0; //Var for naming files
             //Code to write each chunk in a different file with "counter" value as name of file
-            while ((bytes=bufferedInputStream.read(buffer))>0){
+            while ((bytes = bufferedInputStream.read(buffer))>0){
                 String partName = Integer.toString(counter++);
                 chunks.add(partName);//Hashmap that keeps track of all files, to be used when transferring files
                 //Each peer will have this and they will keep track of the chunks they receive in this hashmap
@@ -97,39 +97,41 @@ public class Owner {
         private ObjectOutputStream objectOutputStream;
         private InputStream inputStream;
         private int peerNum;
-        private ArrayList<String>[] chunkParts;
+        private ArrayList<String>[] Parts;
         private FileInputStream fileInputStream;
         private DataOutputStream dataOutputStream;
 
-        public Server(Socket socket, int peernum, ArrayList<String>[] chunkParts) {
+        public Server(Socket socket, int peerNum, ArrayList<String>[] Parts) {
             this.socket = socket;
-            this.peerNum = peernum;
-            this.chunkParts = chunkParts;
+            this.peerNum = peerNum;
+            this.Parts = Parts;
         }
 
         @Override
         public void run() {
             try {
-                objectInputStream = new ObjectInputStream((socket.getInputStream()));
+
+                objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
                 objectInputStream = new ObjectInputStream(socket.getInputStream());
 
                 Message(path); //Sending file path to peers
                 Message(Integer.toString(chunks.size())); //Sending number of chunks to peers
 
-                String[] SizeList = new String[chunkParts[peerNum-1].size()];
-                objectOutputStream.writeObject(chunkParts[peerNum-1]);
+                String[] SizeList = new String[Parts[peerNum-1].size()];
+                objectOutputStream.writeObject(Parts[peerNum-1]);
 
-                for (int i = 0; i<chunkParts[peerNum-1].size(); i++){
-                    File file = new File(chunkParts[peerNum-1].get(i));
+                for (int i = 0; i<Parts[peerNum-1].size(); i++){
+                    File file = new File(Parts[peerNum-1].get(i));
                     SizeList[i] = Long.toString(file.length());
                 }
 
                 objectOutputStream.writeObject(SizeList); //Sending File Lengths to peers
                 objectOutputStream.flush();
 
-                for (int i = 0; i<chunkParts[peerNum-1].size(); i++){
-                    File file = new File(chunkParts[peerNum-1].get(i));
+                for (int i = 0; i<Parts[peerNum-1].size(); i++){
+                    File file = new File(Parts[peerNum-1].get(i));
                     fileInputStream = new FileInputStream(file);
+                    dataOutputStream = new DataOutputStream(socket.getOutputStream());
                     byte[] buffer = new byte[100*1024]; //Byte array of the same size as chunks
 
                     while (fileInputStream.read(buffer)>0){
@@ -168,12 +170,21 @@ public class Owner {
                         e.printStackTrace();
                     }
                 }
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
 
-        private void Message(String string) throws IOException {
-            objectOutputStream.writeObject(string);
-            objectOutputStream.flush();
+        public void Message(String string) {
+            try {
+                objectOutputStream.writeObject(string);
+                objectOutputStream.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 }

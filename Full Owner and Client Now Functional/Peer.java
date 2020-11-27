@@ -15,14 +15,15 @@ public class Peer {
     private static int Chunks;      //Stores chunk quantity (No. of chunks that the file was split into)
     private static int ServerPort;  //Self Server Port, When this peer acts as a server
     private static int ClientPort;  //Self Client Port, When this peer acts as a client
-    private static HashSet<String> recvdChunks; //Chunks that have been received by the Peer
+    private static HashSet<String> recvdChunks = new HashSet<>(); //Chunks that have been received by the Peer
     private static String path;
 
 
 
     public static void main(String[] args) throws IOException {
         //Code to start both upload and download
-        int ownerPort = Integer.parseInt(args[0]);
+        //int ownerPort = Integer.parseInt(args[0]);
+        int ownerPort = 2000;
         Socket fileOwner; //Socket to get data from teh fileowner
         Socket socket = null;  //Socket to get data from another peer
         ServerSocket serverSocket;
@@ -31,7 +32,8 @@ public class Peer {
         DataInputStream dataInputStream = null;
         FileOutputStream fileOutputStream = null;
 
-
+        //ServerPort = 2001;
+        //ClientPort = 2002;
 
         ServerPort = Integer.parseInt(args[1]);
         ClientPort = Integer.parseInt(args[2]);
@@ -40,13 +42,19 @@ public class Peer {
             fileOwner = new Socket("localhost", ownerPort);
             System.out.println("Connected to Owner at port: " + ownerPort);
             objectInputStream = new ObjectInputStream(fileOwner.getInputStream());
+            System.out.println("Debug 1");
             objectOutputStream = new ObjectOutputStream(fileOwner.getOutputStream());
+            System.out.println("Debug 2");
             String chunkNum;
 
             path = (String) objectInputStream.readObject();
+            System.out.println("Debug 3");
             Chunks = Integer.parseInt((String)objectInputStream.readObject());
+            System.out.println("Debug 4");
             ArrayList<String> Parts = (ArrayList<String >)objectInputStream.readObject();
+            System.out.println("Debug 5");
             String[] SizeList = (String[]) objectInputStream.readObject();
+            System.out.println("Debug 6");
 
             for (int i = 0; i<Parts.size(); i++){
                 chunkNum = Parts.get(i);
@@ -67,6 +75,7 @@ public class Peer {
             fileOwner.close();
 
             PrintWriter printWriter = new PrintWriter("ReceivedChunks.txt"); //File where we store the chunk ids that have been received by the peer
+            System.out.println("Received Chunks File Created");
             for (String ch: recvdChunks) {
                 printWriter.println(ch);;
             }printWriter.close();
@@ -102,11 +111,11 @@ public class Peer {
         } catch (ConnectException e) {
             System.out.println("Connection Refused");
         } catch (UnknownHostException e) {
-            e.printStackTrace();
+            System.out.println("You're connecting to an unknown host");
         } catch (IOException e) {
             e.printStackTrace();
         } catch (ClassNotFoundException e) {
-            e.printStackTrace();
+            System.out.println("Class Not Found");
         } finally {
             if (objectInputStream != null) objectInputStream.close();
             if (objectOutputStream != null) objectOutputStream.close();
@@ -154,7 +163,7 @@ public class Peer {
                         Message("Not Equal", objectOutputStream);
                     }
 
-                    //sleep(600);
+                    sleep(600);
                     int index = random.nextInt(pendingChunks.size());
                     Iterator<String> iterator = pendingChunks.iterator();
                     for (int i = 0; i<index; i++){
@@ -164,7 +173,7 @@ public class Peer {
                     Message(random_String, objectOutputStream);
                     System.out.println("Peer" + ServerPort + "requested" + random_String);
 
-                    //sleep(600);
+                    sleep(600);
                     recvdChunks.add(random_String);
                     updateFile(random_String);
 
@@ -199,13 +208,13 @@ public class Peer {
                                 Files.copy(file.toPath(), bos);
                             }
                         }
-                        //sleep(600);
+                        sleep(600);
                     } //else {
                        // System.out.println("Not yet done.");
                     //}
                 }
 
-            } catch (IOException | ClassNotFoundException e) {
+            } catch (IOException | ClassNotFoundException | InterruptedException e) {
                 e.printStackTrace();
             } finally {
                 try {
@@ -249,7 +258,7 @@ public class Peer {
                 HashSet<String> avlChunks;
 
                 while (true) {
-                    //sleep(600);
+                    sleep(600);
                     byte[] buffer;
                     int read;
                     String random_String;
@@ -258,14 +267,14 @@ public class Peer {
                     objectOutputStream.writeObject(avlChunks);
                     System.out.println("Peer " + ServerPort + " sent available chunks to " + ClientPort);
                     objectOutputStream.flush();
-                    //sleep(600);
+                    sleep(600);
                     if (((String)objectInputStream.readObject()).equals("Equal Set")) {
                         continue;
                     }
 
                     random_String = (String)objectInputStream.readObject();
                     System.out.println("Received request for chunks from :" + ClientPort);
-                    //sleep(600);
+                    sleep(600);
                     File file = new File(random_String);
                     Message(Long.toString(file.length()), objectOutputStream);
 
@@ -280,7 +289,7 @@ public class Peer {
                     outputStream.flush();
                 }
 
-            } catch (IOException | ClassNotFoundException e) {
+            } catch (IOException | ClassNotFoundException | InterruptedException e) {
                 e.printStackTrace();
             }
         }
