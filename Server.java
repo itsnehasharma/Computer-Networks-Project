@@ -84,6 +84,8 @@ public class Server {
 				ex.printStackTrace();
 			}
 
+			// over here put file into map
+
 			try {
 
 				// initialize Input and Output streams
@@ -95,13 +97,31 @@ public class Server {
 				File file = new File(fileName);
 				byte[] fileInBytes = new byte[fileSize];
 
-				FileInputStream fis = new FileInputStream(file);
-				BufferedInputStream bis = new BufferedInputStream(fis);
-
 				ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
 
+				// FileInputStream fis = new FileInputStream(file);
+				// BufferedInputStream bis = new BufferedInputStream(fis);
 				// fileInBytes contains the file alice.txt in bytes
-				bis.read(fileInBytes, 0, fileInBytes.length);
+				// bis.read(fileInBytes, 0, fileInBytes.length);
+				HashMap<Integer, byte[]> pieceMap = new HashMap<>();
+				byte[] buffer = new byte[pieceSize];
+				int counter = 1;
+
+				//putting contents of the file into a map 
+				try (FileInputStream fileInputStream = new FileInputStream(file);
+						BufferedInputStream bufferedInputStream = new BufferedInputStream(fileInputStream)) {
+
+					// add each piece of the file to a map
+					while ((bufferedInputStream.read(buffer)) > 0) {
+
+						byteOS.write(buffer, 0, pieceSize);
+						byte[] piece = byteOS.toByteArray();
+						pieceMap.put(counter, piece);
+						byteOS.flush();
+						byteOS.reset();
+						counter++;
+					}
+				}
 
 				boolean quit = false;
 
@@ -114,7 +134,8 @@ public class Server {
 
 						din.read(incomingMsg); // read message into the msg 32 byte buffer
 
-						// System.out.println("Received message from client " + no + ": " + Arrays.toString(incomingMsg)); //for tseting
+						// System.out.println("Received message from client " + no + ": " +
+						// Arrays.toString(incomingMsg)); //for tseting
 
 						// set up handshake message to send after receiving one from the client
 						String headerStr = "P2PFILESHARINGPROJ"; // header
@@ -130,14 +151,15 @@ public class Server {
 
 						byte[] handshake = byteOS.toByteArray();
 
-						// System.out.println("server sending handshake message: " + Arrays.toString(handshake));
+						// System.out.println("server sending handshake message: " +
+						// Arrays.toString(handshake));
 
 						sendMessage(handshake); // send handshake message to client
 
-						incomingMsg = new byte[128]; //reset incoming message buffer, might need to change this number 
+						incomingMsg = new byte[128]; // reset incoming message buffer, might need to change this number
 
 					} else if (!sentBitfield) {
-						//iterate through a map of parts and add to the message if it exists
+						// iterate through a map of parts and add to the message if it exists
 
 						sentBitfield = true;
 					} else {
@@ -147,9 +169,8 @@ public class Server {
 						// retrieve message type
 						byte[] incomingMessageType = Arrays.copyOfRange(incomingMsg, 4, 5);
 
-						//check the message type
+						// check the message type
 						if (Arrays.equals(incomingMessageType, messageTypeMap.get("interested"))) {
-
 
 							System.out.println("interested functionality");
 						} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("not_interested"))) {
@@ -157,22 +178,27 @@ public class Server {
 						} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("have"))) {
 							System.out.println("have functionality");
 						} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("request"))) {
-							//if not choked 
+							// if not choked
 							System.out.println("request message received ");
 							byte[] indexToSend = Arrays.copyOfRange(incomingMsg, 5, 9);
 							int index = ByteBuffer.wrap(indexToSend).getInt();
+							System.out.println("server recieved index from client:" + index);
 							// System.out.println("index to send from: " + index); //for testing
 
 							// 73 for 9 byte header and 64 byte message payload
-							messageLength = ByteBuffer.allocate(4).putInt(73).array();
-							messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("piece")).array(); 							
+							int payload = 9+128;
+							messageLength = ByteBuffer.allocate(4).putInt(payload).array();
+							messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("piece")).array();
 							indexField = ByteBuffer.allocate(4).putInt(index).array(); // index of starting point
 
-							byteOS.reset(); //make sure byteOS is empty
+							byteOS.reset(); // make sure byteOS is empty
 							byteOS.write(messageLength);
 							byteOS.write(messageType); // should equal binary 7 for "piece"
 							byteOS.write(indexField);
-							byteOS.write(fileInBytes, index, pieceSize); // writing the contents of the file
+							// byteOS.write(fileInBytes, index, pieceSize); // writing the contents of the file
+							System.out.println("sending piece " + index);
+							byte[] pieceBuffer = pieceMap.get(index);
+							byteOS.write(pieceBuffer);
 
 							byte[] sendMessage = byteOS.toByteArray();
 							sendMessage(sendMessage); // sending the piece message
@@ -182,7 +208,7 @@ public class Server {
 
 							if (quit) {
 								dout.flush();
-								bis.close();
+								// bis.close();
 								sc.close();
 								System.out.println("File Transfer Complete.");
 								serverLoop = false;
@@ -215,7 +241,7 @@ public class Server {
 			}
 		}
 
-		//map used for message typing 
+		// map used for message typing
 		HashMap<String, byte[]> createMessageHashMap() {
 			HashMap<String, byte[]> map = new HashMap<String, byte[]>();
 			byte zero = 0b000;
@@ -241,7 +267,7 @@ public class Server {
 	}
 }
 
-/// IGNORE: old testing code 
+/// IGNORE: old testing code
 
 // //space used for all other messages that are not handshake
 // File transferFile = new File(this.fileName);

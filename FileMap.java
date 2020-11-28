@@ -54,10 +54,11 @@ public class FileMap {
         for (int i = 1; i <= pieceMap.size(); i++){
             byteOS.write(pieceMap.get(i)); //write all pieces from map into byteOS
         }
-        byteOS.flush();
-        byteOS.reset();
+        
         
         byte [] finalFile = byteOS.toByteArray();
+        byteOS.flush();
+        byteOS.reset();
         File fullFile = new File(file.getParent(), "finalfile.txt");
         try (FileOutputStream fileOutputStream = new FileOutputStream(fullFile)){
             //Writing chunk data to file

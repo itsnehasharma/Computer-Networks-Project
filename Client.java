@@ -2,6 +2,7 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Scanner;
 import java.io.*;
@@ -96,14 +97,17 @@ public class Client {
 			boolean clientLoop = true;
 
 			//setting up folder & file for copy to be made in 
-			File newDir = new File(System.getProperty("user.dir") + "/" + peerIDInt);
-			newDir.mkdir();
+			// File newDir = new File(System.getProperty("user.dir") + "/" + peerIDInt);
+			// newDir.mkdir();
 
-			String pathname = newDir.getAbsolutePath() + "/" + fileName;
+			// String pathname = newDir.getAbsolutePath() + "/" + fileName;
 
-			FileOutputStream fos = new FileOutputStream(pathname);
-			BufferedOutputStream bos = new BufferedOutputStream(fos);
+			// FileOutputStream fos = new FileOutputStream(pathname);
+			// BufferedOutputStream bos = new BufferedOutputStream(fos);
 			int largestByte = 0;
+			HashMap<Integer, byte[]> pieceMap = new HashMap<>(); //will hold all of the pieces
+			byte[] buffer = new byte[pieceSize];
+
 
 			while (clientLoop) {
 
@@ -164,12 +168,14 @@ public class Client {
 					// inst	ead of taking user input, the p2p process will use the bittorrent protocol to request the specific bytes
 					// all of this needs to be moved into after the bitfield 
 					System.out.print("request index: ");
-					int start = sc.nextInt();
+					// int start = sc.nextInt();
+					int pieceNum = sc.nextInt();
 					System.out.println();
 
 					messageLength = ByteBuffer.allocate(4).putInt(128).array();
 					messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("request")).array(); //should be 6
-					indexField = ByteBuffer.allocate(4).putInt(start).array(); //index of starting point
+					// indexField = ByteBuffer.allocate(4).putInt(start).array(); //index of starting point
+					indexField = ByteBuffer.allocate(4).putInt(pieceNum).array(); //index of piece num
 
 					//writing request message to the byte output stream 
 					byteOS.reset();
@@ -181,7 +187,7 @@ public class Client {
 					sendMessage(msg); //requesting the piece 
 
 					//waiting for a reply from the server
-					byte[] incomingMessage = new byte[128]; //will need to change the size of this 
+					byte[] incomingMessage = new byte[130]; //will need to change the size of this 
 					// System.out.println("waiting for server reply");
 
 					//read from 0 to 8 for the header, 9 exclusive 
@@ -206,12 +212,17 @@ public class Client {
 						System.out.println ("piece functionality");
 
 						byte[] fileIndex = Arrays.copyOfRange(incomingMessage, 5, 9);
-						int index = ByteBuffer.wrap(fileIndex).getInt();
-						din.read(finalFileInBytes, index, pieceSize); //should read into file byte array from specified index
-						if (index+pieceSize > largestByte){
-							largestByte = index+pieceSize; //only up to the largest byte will be exported to the file.
-						}
-
+						int index = ByteBuffer.wrap(fileIndex).getInt(); //number corresponds to the number in the map 
+						// System.out.println("client recieved index from server: " + index);
+						// din.read(finalFileInBytes, index, pieceSize); //should read into file byte array from specified index
+						// if (index+pieceSize > largestByte){
+						// 	largestByte = index+pieceSize; //only up to the largest byte will be exported to the file.
+						// }
+						int bytesRead = din.read(buffer, 0, pieceSize);
+						// System.out.println("bytes read: " + bytesRead);
+						byte[] newPiece = new byte[pieceSize];
+						newPiece = buffer.clone();
+						pieceMap.put(index, newPiece);
 						//send another request message
 					}
 
@@ -222,9 +233,31 @@ public class Client {
 
 					if (quit) {
 						//when done, we need to write to the client's folder 
-						bos.write(finalFileInBytes, 0, largestByte); //writes final into peerid/alice.txt
+						// bos.write(finalFileInBytes, 0, largestByte); //writes final into peerid/alice.txt
+						
+						// for (Map.Entry<Integer,byte[]> entry: pieceMap.entrySet()) {
+						// 	byteOS.write(entry.getValue());
+						// }
+
+						byteOS.reset();
+						for (int i = 1; i <= pieceMap.size(); i++){
+							System.out.println("piece number " + i);
+            				byteOS.write(pieceMap.get(i)); //write all pieces from map into byteOS
+        				}
+						byte[] finalFile = byteOS.toByteArray();
+
+						File newDir = new File(System.getProperty("user.dir") + "/" + peerIDInt);
+						newDir.mkdir();
+						// String pathname = newDir.getAbsolutePath() + "/" + fileName;
+						String pathname = newDir.getAbsolutePath() + "/" + "copy.txt";
+						File copiedFile = new File (pathname); //get the directory for this 
+						try (FileOutputStream fos = new FileOutputStream(copiedFile)){
+							fos.write(finalFile);
+						}
+						byteOS.flush();
+						byteOS.reset();
 						sc.close();
-						bos.close();
+						// bos.close();
 						din.close();
 						dout.flush();
 						dout.close();
