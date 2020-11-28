@@ -1,5 +1,6 @@
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,6 +14,7 @@ public class Client {
 	DataOutputStream dout;
 
 	boolean recHandshake = false;
+	boolean start = false;
 
 	//will be set from config and setup 
 	int peerIDInt = -1;
@@ -34,8 +36,11 @@ public class Client {
 
 	// int pieceSize = 64; // for testing 
 	int pieceSize = -1;
+	int numPieces = 0;
+	int piecesReceived = 0;
 
 	HashMap<String, byte[]> messageTypeMap = createMessageHashMap();
+	HashMap<Integer, ArrayList<Integer>> neighborBitfieldMap = new HashMap<Integer, ArrayList<Integer>>();
 	private String fileName = ""; //get from config
 
 	public static void main(String args[]) {
@@ -84,6 +89,7 @@ public class Client {
 				this.pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
 				this.fileSize = Integer.valueOf(prop.getProperty("FileSize"));
 				finalFileInBytes = new byte[fileSize];
+				numPieces = (int) Math.ceil(fileSize/pieceSize);
 				
 	
 			} catch (IOException ex) {
@@ -145,11 +151,14 @@ public class Client {
 
 					//checking to make sure the correct peerID has been connected
 					byte[] checkServerID = Arrays.copyOfRange(incomingHandshake, 28, 32);
+					int checkServerIDInt = ByteBuffer.wrap(checkServerID).getInt();
 
 					// System.out.println("Receieved peer id:" + Arrays.toString(checkServerID));
 					// System.out.println("Expected peer id:" + Arrays.toString(serverPeerID));
 					if (Arrays.equals(serverPeerID, checkServerID)) {
 						System.out.println("peer ID confirmed.");
+						ArrayList<Integer> tempList = new ArrayList<Integer>();
+						neighborBitfieldMap.put(checkServerIDInt, tempList);
 						
 					} else {
 						System.out.println("incorrect peerID received");
@@ -160,32 +169,29 @@ public class Client {
 					byteOS.reset();
 
 				} else { //every message that is not the handshake 
+					boolean quit = false;
 
-					//client sends the first message
+					//client sends the first message, for now, an interested message
+					if (!start){
+						messageLength = ByteBuffer.allocate(4).putInt(128).array();
+						messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("interested")).array(); 
 
+
+						byteOS.reset();
+						byteOS.write(messageLength);
+						byteOS.write(messageType);
+
+						byte [] msg = byteOS.toByteArray();
+						sendMessage(msg); //requesting the piece
+						System.out.println("sending interested");
+
+						start = true;
+					}
 					// this is the request functionality only for now.
 
 					// inst	ead of taking user input, the p2p process will use the bittorrent protocol to request the specific bytes
 					// all of this needs to be moved into after the bitfield 
-					System.out.print("request index: ");
-					// int start = sc.nextInt();
-					int pieceNum = sc.nextInt();
-					System.out.println();
-
-					messageLength = ByteBuffer.allocate(4).putInt(128).array();
-					messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("request")).array(); //should be 6
-					// indexField = ByteBuffer.allocate(4).putInt(start).array(); //index of starting point
-					indexField = ByteBuffer.allocate(4).putInt(pieceNum).array(); //index of piece num
-
-					//writing request message to the byte output stream 
-					byteOS.reset();
-					byteOS.write(messageLength);
-					byteOS.write(messageType);
-					byteOS.write(indexField);
-
-					byte [] msg = byteOS.toByteArray();
-					sendMessage(msg); //requesting the piece 
-
+					
 					//waiting for a reply from the server
 					byte[] incomingMessage = new byte[130]; //will need to change the size of this 
 					// System.out.println("waiting for server reply");
@@ -209,27 +215,54 @@ public class Client {
 						System.out.println ("have functionality");
 					}
 					else if (Arrays.equals(messageType, messageTypeMap.get("piece"))){
+						
 						System.out.println ("piece functionality");
 
 						byte[] fileIndex = Arrays.copyOfRange(incomingMessage, 5, 9);
 						int index = ByteBuffer.wrap(fileIndex).getInt(); //number corresponds to the number in the map 
+						System.out.println("recieved piece " + index);
 						// System.out.println("client recieved index from server: " + index);
 						// din.read(finalFileInBytes, index, pieceSize); //should read into file byte array from specified index
 						// if (index+pieceSize > largestByte){
 						// 	largestByte = index+pieceSize; //only up to the largest byte will be exported to the file.
 						// }
 						int bytesRead = din.read(buffer, 0, pieceSize);
+						piecesReceived++;
 						// System.out.println("bytes read: " + bytesRead);
 						byte[] newPiece = new byte[pieceSize];
 						newPiece = buffer.clone();
 						pieceMap.put(index, newPiece);
 						//send another request message
+						// System.out.print("request index: ");
+
+						// int start = sc.nextInt();
+						// int pieceNum = sc.nextInt();
+						if (piecesReceived < numPieces) {
+							int pieceNum = index+1; //request the next index
+							System.out.println("requesting piece " + pieceNum);
+							messageLength = ByteBuffer.allocate(4).putInt(128).array();
+							messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("request")).array(); //should be 6
+							// indexField = ByteBuffer.allocate(4).putInt(start).array(); //index of starting point
+							indexField = ByteBuffer.allocate(4).putInt(pieceNum).array(); //index of piece num
+
+							//writing request message to the byte output stream 
+							byteOS.reset();
+							byteOS.write(messageLength);
+							byteOS.write(messageType);
+							byteOS.write(indexField);
+
+							byte [] msg = byteOS.toByteArray();
+							sendMessage(msg); //requesting the piece 
+						} else {
+							quit = true;
+						}
+						
 					}
 
 					//request message has been sent, now wait for response of piece 
 
-					System.out.println("quit?");
-					boolean quit = sc.nextBoolean();
+					// System.out.println("quit?");
+					// boolean quit = sc.nextBoolean();
 
 					if (quit) {
 						//when done, we need to write to the client's folder 
@@ -238,10 +271,10 @@ public class Client {
 						// for (Map.Entry<Integer,byte[]> entry: pieceMap.entrySet()) {
 						// 	byteOS.write(entry.getValue());
 						// }
-
+						System.out.println("Client is gathering file pieces to combine.");
 						byteOS.reset();
 						for (int i = 1; i <= pieceMap.size(); i++){
-							System.out.println("piece number " + i);
+							// System.out.println("piece number " + i);
             				byteOS.write(pieceMap.get(i)); //write all pieces from map into byteOS
         				}
 						byte[] finalFile = byteOS.toByteArray();
@@ -254,6 +287,8 @@ public class Client {
 						try (FileOutputStream fos = new FileOutputStream(copiedFile)){
 							fos.write(finalFile);
 						}
+
+						System.out.println("Client: final file has been written");
 						byteOS.flush();
 						byteOS.reset();
 						sc.close();

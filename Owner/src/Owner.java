@@ -8,7 +8,7 @@ import java.util.Scanner;
 
 public class Owner {
     private static int port;
-    private static HashSet<String> chunks = new HashSet();
+    private static HashSet<String> chunks = new HashSet<String>();
     private static String path;
 
     Owner(){

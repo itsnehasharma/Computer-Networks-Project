@@ -55,10 +55,13 @@ public class Server {
 
 		Scanner sc = new Scanner(System.in);
 		HashMap<String, byte[]> messageTypeMap = createMessageHashMap();
+		HashMap<Integer, byte[]> pieceMap = new HashMap<>();
 
 		byte[] messageLength;
 		byte[] messageType;
 		byte[] indexField;
+
+		ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
 
 		public Handler(Socket connection, int peerIDInt) {
 			this.connection = connection;
@@ -97,17 +100,17 @@ public class Server {
 				File file = new File(fileName);
 				byte[] fileInBytes = new byte[fileSize];
 
-				ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
+				// ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
 
 				// FileInputStream fis = new FileInputStream(file);
 				// BufferedInputStream bis = new BufferedInputStream(fis);
 				// fileInBytes contains the file alice.txt in bytes
 				// bis.read(fileInBytes, 0, fileInBytes.length);
-				HashMap<Integer, byte[]> pieceMap = new HashMap<>();
+
 				byte[] buffer = new byte[pieceSize];
 				int counter = 1;
 
-				//putting contents of the file into a map 
+				// putting contents of the file into a map
 				try (FileInputStream fileInputStream = new FileInputStream(file);
 						BufferedInputStream bufferedInputStream = new BufferedInputStream(fileInputStream)) {
 
@@ -160,60 +163,73 @@ public class Server {
 
 					} else if (!sentBitfield) {
 						// iterate through a map of parts and add to the message if it exists
-
 						sentBitfield = true;
 					} else {
-						// might need to change the size of message
-						din.read(incomingMsg); // waiting for a client request
+						// might need to change the size of message				
 
-						// retrieve message type
-						byte[] incomingMessageType = Arrays.copyOfRange(incomingMsg, 4, 5);
+						while (din.read(incomingMsg) > -1) {
+							// System.out.println("waiting for client");
+							// System.out.println(din.read(incomingMsg)); // waiting for a client request
 
-						// check the message type
-						if (Arrays.equals(incomingMessageType, messageTypeMap.get("interested"))) {
+							// retrieve message type
+							byte[] incomingMessageType = Arrays.copyOfRange(incomingMsg, 4, 5);
 
-							System.out.println("interested functionality");
-						} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("not_interested"))) {
-							System.out.println("not_interested functionality");
-						} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("have"))) {
-							System.out.println("have functionality");
-						} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("request"))) {
-							// if not choked
-							System.out.println("request message received ");
-							byte[] indexToSend = Arrays.copyOfRange(incomingMsg, 5, 9);
-							int index = ByteBuffer.wrap(indexToSend).getInt();
-							System.out.println("server recieved index from client:" + index);
-							// System.out.println("index to send from: " + index); //for testing
+							// check the message type
+							if (Arrays.equals(incomingMessageType, messageTypeMap.get("interested"))) {
 
-							// 73 for 9 byte header and 64 byte message payload
-							int payload = 9+128;
-							messageLength = ByteBuffer.allocate(4).putInt(payload).array();
-							messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("piece")).array();
-							indexField = ByteBuffer.allocate(4).putInt(index).array(); // index of starting point
+								System.out.println("interested functionality");
+								sendPiece(1); // this needs to be changed!
+								incomingMsg = new byte[32];
+								// din.reset();
+							} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("not_interested"))) {
+								System.out.println("not_interested functionality");
+							} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("have"))) {
+								System.out.println("have functionality");
+							} else if (Arrays.equals(incomingMessageType, messageTypeMap.get("request"))) {
+								// if not choked
+								System.out.println("request message received ");
+								byte[] pieceNumToSend = Arrays.copyOfRange(incomingMsg, 5, 9);
+								int pieceNumInt = ByteBuffer.wrap(pieceNumToSend).getInt();
+								System.out.println("server recieved index from client:" + pieceNumInt);
+								// System.out.println("index to send from: " + index); //for testing
+								sendPiece(pieceNumInt);
+								incomingMsg = new byte[32];
+								// din.reset();
+								// 9 byte header and 128 byte message payload
+								// int payload = 9+128;
+								// messageLength = ByteBuffer.allocate(4).putInt(payload).array();
+								// messageType =
+								// ByteBuffer.allocate(1).put(messageTypeMap.get("piece")).array();
+								// indexField = ByteBuffer.allocate(4).putInt(pieceNumInt).array(); // index of
+								// starting point
 
-							byteOS.reset(); // make sure byteOS is empty
-							byteOS.write(messageLength);
-							byteOS.write(messageType); // should equal binary 7 for "piece"
-							byteOS.write(indexField);
-							// byteOS.write(fileInBytes, index, pieceSize); // writing the contents of the file
-							System.out.println("sending piece " + index);
-							byte[] pieceBuffer = pieceMap.get(index);
-							byteOS.write(pieceBuffer);
+								// byteOS.reset(); // make sure byteOS is empty
+								// byteOS.write(messageLength);
+								// byteOS.write(messageType); // should equal binary 7 for "piece"
+								// byteOS.write(indexField);
+								// // byteOS.write(fileInBytes, index, pieceSize); // writing the contents of
+								// the file
+								// System.out.println("sending piece " + pieceNumInt);
+								// byte[] pieceBuffer = pieceMap.get(pieceNumInt);
+								// byteOS.write(pieceBuffer);
 
-							byte[] sendMessage = byteOS.toByteArray();
-							sendMessage(sendMessage); // sending the piece message
+								// byte[] sendMessage = byteOS.toByteArray();
+								// sendMessage(sendMessage); // sending the piece message
 
-							System.out.println("quit?");
-							quit = sc.nextBoolean();
+								// System.out.println("quit?");
+								// quit = sc.nextBoolean();
 
-							if (quit) {
-								dout.flush();
-								// bis.close();
-								sc.close();
-								System.out.println("File Transfer Complete.");
-								serverLoop = false;
+								if (quit) {
+									dout.flush();
+									// bis.close();
+									sc.close();
+									System.out.println("File Transfer Complete.");
+									serverLoop = false;
+								}
 							}
+
 						}
+
 					}
 					recHandshake = true; // received handshake
 
@@ -239,6 +255,28 @@ public class Server {
 			} catch (IOException ioException) {
 				ioException.printStackTrace();
 			}
+		}
+
+		void sendPiece(int pieceNumInt) throws IOException {
+			// 9 byte header and 128 byte message payload
+			int payload = 9 + 128;
+			messageLength = ByteBuffer.allocate(4).putInt(payload).array();
+			messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("piece")).array();
+			indexField = ByteBuffer.allocate(4).putInt(pieceNumInt).array(); // index of starting point
+
+			byteOS.reset(); // make sure byteOS is empty
+			byteOS.write(messageLength);
+			byteOS.write(messageType); // should equal binary 7 for "piece"
+			byteOS.write(indexField);
+			// byteOS.write(fileInBytes, index, pieceSize); // writing the contents of the
+			// file
+			System.out.println("sending piece " + pieceNumInt);
+			byte[] pieceBuffer = pieceMap.get(pieceNumInt);
+			byteOS.write(pieceBuffer);
+
+			byte[] sendMessage = byteOS.toByteArray();
+			sendMessage(sendMessage); // sending the piece message
+
 		}
 
 		// map used for message typing
