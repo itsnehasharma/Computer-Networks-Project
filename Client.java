@@ -50,6 +50,7 @@ public class Client {
 		// main will not be run when peer process runs
 
 		int portNum = Integer.valueOf(args[0]);
+		// int portNum = Integer.valueOf(args[2]);
 		// int portNum = 8000; // for testing
 
 		int peerIDInt = Integer.valueOf(args[1]);
@@ -77,6 +78,7 @@ public class Client {
 			// System.out.println("I am peer " + peerIDInt + " trying to connect to " + hostname + " at port " + portNum);
 
 			requestSocket = new Socket(hostname, portNum);
+			System.out.println( "trying to connect to port " + portNum);
 			System.out.println("Connected to localhost in port " + portNum);
 
 			try (InputStream input = new FileInputStream("config.properties")) {

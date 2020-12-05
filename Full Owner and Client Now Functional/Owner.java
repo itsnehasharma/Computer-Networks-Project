@@ -80,6 +80,7 @@ public class Owner {
         int peerNum = 1;
         try {
             while (true) {
+                System.out.println("waiting for clients");
                 new Server(serverSocket.accept(),peerNum,Parts).start();
                 System.out.println("Peer " + peerNum + " Connected");
                 peerNum++;

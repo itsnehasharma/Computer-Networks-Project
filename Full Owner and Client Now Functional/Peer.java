@@ -20,8 +20,8 @@ public class Peer {
 
     public static void main(String[] args) throws IOException {
         //Code to start both upload and download
-        //int ownerPort = Integer.parseInt(args[0]);
-        int ownerPort = 2000;
+        int ownerPort = Integer.parseInt(args[0]);
+        // int ownerPort = 2000;
         Socket fileOwner; //Socket to get data from teh fileowner
         Socket socket = null;  //Socket to get data from another peer
         ServerSocket serverSocket;
