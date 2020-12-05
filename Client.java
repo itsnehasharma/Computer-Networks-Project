@@ -216,7 +216,7 @@ public class Client {
 					}
 					else if (Arrays.equals(messageType, messageTypeMap.get("piece"))){
 						
-						System.out.println ("piece functionality");
+						// System.out.println ("piece functionality");
 
 						byte[] fileIndex = Arrays.copyOfRange(incomingMessage, 5, 9);
 						int index = ByteBuffer.wrap(fileIndex).getInt(); //number corresponds to the number in the map 

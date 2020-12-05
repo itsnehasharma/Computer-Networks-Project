@@ -98,7 +98,7 @@ public class Server {
 
 				// creating a byte array of the file
 				File file = new File(fileName);
-				byte[] fileInBytes = new byte[fileSize];
+				// byte[] fileInBytes = new byte[fileSize];
 
 				// ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
 

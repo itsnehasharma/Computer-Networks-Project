@@ -18,8 +18,6 @@ public class Peer {
     private static HashSet<String> recvdChunks = new HashSet<>(); //Chunks that have been received by the Peer
     private static String path;
 
-
-
     public static void main(String[] args) throws IOException {
         //Code to start both upload and download
         //int ownerPort = Integer.parseInt(args[0]);
