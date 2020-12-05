@@ -68,26 +68,29 @@ public class FileMap {
         int bytesNeeded = (int) Math.ceil(numPieces / 7); // each piece represents a bit, first bit is sign
         byte bitfield[] = new byte[bytesNeeded];
 
-        // figure out 8 bit issue
-        for (int i = 0; i < numPieces; i++) {
-            if (i % 8 == 0) { // every 8 bits is a new byte
-                
-                if (i != 0) {
-                    byte b = Byte.parseByte(bitstring, 2);
-                    byteOS.write(b);
-                    bitstring = "";
-                }                
-                bitstring = "0";
-            }
-            if (pieceMap.containsKey(i + 1)) {
-                bitstring += "1";
-            } else {
-                bitstring += "0";
-            }
-
-            if (i == numPieces - 1) {
+        for (int i = 1; i <= pieceMap.size(); i++) {
+            
+            if (i%7 == 0 && i != 0){ //every 8 bits the bitstring must be written out and reset
                 byte b = Byte.parseByte(bitstring, 2);
                 byteOS.write(b);
+                bitstring = "";
+            }
+
+            if (bitstring.equals("")) { //first bit in the bit string must be 0 
+                bitstring = "0";
+            }
+
+            if (pieceMap.containsKey(i)){ //if the map contains the key, add 1, if not add 0
+                bitstring += "1";
+            } else bitstring += "0";
+
+            if (i == pieceMap.size()){ //at the end of the map, all remaining bits are 0
+                int bsLength = bitstring.length();
+                int j = 7 - bsLength;
+
+                for (int k = 0; k < j; k++){
+                    bitstring += "0";
+                }
             }
         }
 
@@ -95,11 +98,11 @@ public class FileMap {
         byteOS.flush();
         byteOS.reset();
 
-        for (int i = 0; i < bitfield.length; i++){
+        //how to check what the person has 
+        byte b = Byte.parseByte("01010101",2);
+        String gettingBits = Integer.toBinaryString(b);
+        System.out.println(gettingBits);
 
-            int bit = (bitfield[i] >> i);
-
-        }
 
     }
 
