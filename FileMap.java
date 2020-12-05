@@ -95,7 +95,7 @@ public class FileMap {
         }
 
         bitfield = byteOS.toByteArray();
-        byteOS.flush();
+        byteOS.flush(); 
         byteOS.reset();
 
         //how to check what the person has 

@@ -15,6 +15,7 @@ public class Client {
 
 	boolean recHandshake = false;
 	boolean start = false;
+	boolean sentBitfield = false; //will need to be changed once we connect peers in a different way 
 
 	//will be set from config and setup 
 	int peerIDInt = -1;
@@ -40,7 +41,8 @@ public class Client {
 	int piecesReceived = 0;
 
 	HashMap<String, byte[]> messageTypeMap = createMessageHashMap();
-	HashMap<Integer, ArrayList<Integer>> neighborBitfieldMap = new HashMap<Integer, ArrayList<Integer>>();
+	HashMap<Integer,Boolean> neighborBitfieldMap = new HashMap<Integer, Boolean>(); //will need to be changed to be a list of lists
+	// HashMap<Integer, ArrayList<Integer>> neighborBitfieldMap = new HashMap<Integer, ArrayList<Integer>>();
 	private String fileName = ""; //get from config
 
 	public static void main(String args[]) {
@@ -157,8 +159,8 @@ public class Client {
 					// System.out.println("Expected peer id:" + Arrays.toString(serverPeerID));
 					if (Arrays.equals(serverPeerID, checkServerID)) {
 						System.out.println("peer ID confirmed.");
-						ArrayList<Integer> tempList = new ArrayList<Integer>();
-						neighborBitfieldMap.put(checkServerIDInt, tempList);
+						// ArrayList<Integer> tempList = new ArrayList<Integer>();
+						// neighborBitfieldMap.put(checkServerIDInt, tempList);
 						
 					} else {
 						System.out.println("incorrect peerID received");
@@ -206,6 +208,36 @@ public class Client {
 
 					if (Arrays.equals(messageType, messageTypeMap.get("choke"))){
 						System.out.println ("choke functionality");
+					} 
+					else if (Arrays.equals(messageType, messageTypeMap.get("bitfield"))){
+						System.out.println("client received bitfield message");
+						byte[] bitfieldLength = Arrays.copyOfRange(incomingMessage, 0, 4);
+						System.out.println(bitfieldLength.length);
+						int bMsize = ByteBuffer.wrap(bitfieldLength).getInt();
+						System.out.println(bMsize);
+						byte[] bitfieldMessage = new byte[ByteBuffer.wrap(bitfieldLength).getInt()];
+
+						din.read(bitfieldMessage);
+						int counter = 1;
+
+						for (int i = 0; i < bitfieldMessage.length; i++){
+							String bs = Integer.toBinaryString(bitfieldMessage[i]);
+							for (int j = 0; j < bs.length(); j++){
+								if (bs.charAt(j) == '0') {
+									System.out.println("server does not have piece " + counter);
+									neighborBitfieldMap.put(counter, false);
+								} else if (bs.charAt(j) == '1'){
+									System.out.println("server has piece " + counter);
+									neighborBitfieldMap.put(counter, true);
+								}
+								counter++;								
+							}
+						}
+
+						for (int piece: neighborBitfieldMap.keySet()){
+							System.out.println(piece + " " + neighborBitfieldMap.get(piece));  
+				}
+
 					}
 					else if (Arrays.equals(messageType, messageTypeMap.get("unchoke"))){
 						System.out.println ("unchoke functionality");
@@ -220,7 +252,7 @@ public class Client {
 
 						byte[] fileIndex = Arrays.copyOfRange(incomingMessage, 5, 9);
 						int index = ByteBuffer.wrap(fileIndex).getInt(); //number corresponds to the number in the map 
-						System.out.println("recieved piece " + index);
+						// System.out.println("recieved piece " + index);
 						// System.out.println("client recieved index from server: " + index);
 						// din.read(finalFileInBytes, index, pieceSize); //should read into file byte array from specified index
 						// if (index+pieceSize > largestByte){
@@ -239,7 +271,7 @@ public class Client {
 						// int pieceNum = sc.nextInt();
 						if (piecesReceived < numPieces) {
 							int pieceNum = index+1; //request the next index
-							System.out.println("requesting piece " + pieceNum);
+							// System.out.println("requesting piece " + pieceNum);
 							messageLength = ByteBuffer.allocate(4).putInt(128).array();
 							messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("request")).array(); //should be 6
 							// indexField = ByteBuffer.allocate(4).putInt(start).array(); //index of starting point

@@ -163,9 +163,61 @@ public class Server {
 
 					} else if (!sentBitfield) {
 						// iterate through a map of parts and add to the message if it exists
+
+						String bitstring = "";
+						int numPieces = (int) Math.ceil(fileSize / pieceSize);
+						int bytesNeeded = (int) Math.ceil(numPieces / 7); // each piece represents a bit, first bit is
+																			// sign
+						byte bitfield[] = new byte[bytesNeeded];
+						byteOS.reset();
+
+						for (int i = 1; i <= pieceMap.size(); i++) {
+
+							if (i % 7 == 0 && i != 0) { // every 8 bits the bitstring must be written out and reset
+								byte b = Byte.parseByte(bitstring, 2);
+								byteOS.write(b);
+								bitstring = "";
+							}
+
+							if (bitstring.equals("")) { // first bit in the bit string must be 0
+								bitstring = "0";
+							}
+
+							if (pieceMap.containsKey(i)) { // if the map contains the key, add 1, if not add 0
+								bitstring += "1";
+							} else
+								bitstring += "0";
+
+							if (i == pieceMap.size()) { // at the end of the map, all remaining bits are 0
+								int bsLength = bitstring.length();
+								int j = 7 - bsLength;
+
+								for (int k = 0; k < j; k++) {
+									bitstring += "0";
+								}
+							}
+						}
+
+						bitfield = byteOS.toByteArray();
+
+						//4 byte message length, //1 byte message type, size of bitfield 
+						int payload = bitfield.length; //payload is done incorrectly when sending pieces 
+						messageLength = ByteBuffer.allocate(4).putInt(payload).array();
+						messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("bitfield")).array();
+
+						byteOS.reset(); // make sure byteOS is empty
+						byteOS.write(messageLength);
+						byteOS.write(messageType); // should equal binary 7 for "piece"
+						byteOS.write(bitfield);
+						byte[] bitfieldMessage = byteOS.toByteArray();
+						byteOS.flush();
+						byteOS.reset();
+
+						sendMessage(bitfieldMessage);
+
 						sentBitfield = true;
 					} else {
-						// might need to change the size of message				
+						// might need to change the size of message
 
 						while (din.read(incomingMsg) > -1) {
 							// System.out.println("waiting for client");
