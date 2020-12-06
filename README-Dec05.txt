@@ -1,13 +1,13 @@
 to run this program, 
 
-first run 
+> javac Peer.java
 
-java Peer <server port> <0> <peer num> <isOwner=1>
+> java Peer <server port> <0> <peer num> <isOwner=1>
 example:
 java Peer 15123 0 1001 1 //1 means owner, run this person first 
 
 then as many as you want: 
-java Peer <server port> <client port> <peer num> <isOwner=0>
+> java Peer <server port> <client port> <peer num> <isOwner=0>
 
 make sure that whatever next peers you run, a server is already open for that peer.
 for example, 
