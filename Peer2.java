@@ -4,7 +4,7 @@ import java.net.*;
 import java.nio.*;
 // import java.nio.file.Files;
 
-public class Peer {
+public class Peer2 {
 
     HashMap<Integer, Boolean> neighborBitfieldMap = new HashMap<Integer, Boolean>(); // will need to be changed to be a
                                                                                      // list of lists
@@ -21,6 +21,8 @@ public class Peer {
     static int numPieces = -1;
 
     public static void main(String[] args) throws Exception {
+
+        int peerIDInt = Integer.valueOf(args[0]);
 
         //get necessary properties from config
         try (InputStream input = new FileInputStream("config.properties")) {
@@ -40,16 +42,45 @@ public class Peer {
             ex.printStackTrace();
         }
 
+        BufferedReader reader = new BufferedReader(new FileReader("P.txt"));
 
-        int serverPortNum = Integer.valueOf(args[0]);
-        int clientPortNum = Integer.valueOf(args[1]);
-        int peerIDInt = Integer.valueOf(args[2]);
-        int isOwner = Integer.valueOf(args[3]);
-        String host = args[4];
+        String line = reader.readLine();
 
-        System.out.println("Serving at: " + serverPortNum + "\nlistening at: " + clientPortNum + "\npeer id: "
-                + peerIDInt + "\nis owner: " + isOwner + "\nconnecting to host: " + host);
-        ServerSocket listener = new ServerSocket(serverPortNum);
+        HashMap<Integer, String[]> peerInfoMap = new HashMap<Integer, String[]>();
+
+        while (line != null) {
+
+            // System.out.println(line);
+            String lineArr[] = line.split(" ");
+            int tempPeerID = Integer.valueOf(lineArr[0]);
+            String peerInfo[] = Arrays.copyOfRange(lineArr, 1, 4);
+            peerInfoMap.put(tempPeerID, peerInfo);
+
+            line = reader.readLine();
+        }
+
+        for (int id : peerInfoMap.keySet()) {
+            System.out.println("[" + id + "] " + Arrays.toString(peerInfoMap.get(id)));
+
+        }
+
+        reader.close();
+
+        String[] myInfo = peerInfoMap.get(peerIDInt);
+        int portNum = Integer.valueOf(myInfo[1]);
+        int isOwner = Integer.valueOf(myInfo[2]);
+
+        System.out.println("I am " + peerIDInt);
+
+        // int serverPortNum = Integer.valueOf(args[0]);
+        // int clientPortNum = Integer.valueOf(args[1]);
+        // int peerIDInt = Integer.valueOf(args[2]);
+        // int isOwner = Integer.valueOf(args[3]);
+        // String host = args[4];
+
+        // System.out.println("Serving at: " + serverPortNum + "\nlistening at: " + clientPortNum + "\npeer id: "
+        //         + peerIDInt + "\nis owner: " + isOwner + "\nconnecting to host: " + host);
+        ServerSocket listener = new ServerSocket(portNum);
         int clientNum = 1;
 
         boolean clientConnect = false;
@@ -66,9 +97,20 @@ public class Peer {
 
                     if (!clientConnect) {
                         // new Client(clientPortNum, peerIDInt).run();
-                        new Client(clientPortNum, host, peerIDInt).run();
                         
-                        // client.run();
+                        for (int id : peerInfoMap.keySet()) {
+                            System.out.println("[" + id + "] " + Arrays.toString(peerInfoMap.get(id)));
+                            if (id < peerIDInt){
+
+                                String[] peerInfo = peerInfoMap.get(id);
+                                int connectToPort = Integer.valueOf(peerInfo[1]);
+                                String connectToHost = peerInfo[0];
+                                System.out.println("I," + peerIDInt + " need to connect to: [" + id + "] " + Arrays.toString(peerInfoMap.get(id)));
+                                new Client(connectToPort, connectToHost, peerIDInt).start();
+                            }
+
+                    }
+                                                // client.run();
                         clientConnect = true;
                     }
                     // new Server.Handler(listener.accept(), peerIDInt).start();
@@ -379,8 +421,8 @@ public class Peer {
 
     }
 
-    static class Client {
-        Socket requestSocket; // socket connect to the server
+    static class Client extends Thread{
+        Socket requestSocket;
         DataInputStream client_din;
         DataOutputStream client_dout;
 
@@ -447,33 +489,38 @@ public class Peer {
            
         }
 
-        void run() {
+        private void startClient() throws UnknownHostException, IOException {
+            requestSocket = new Socket(hostname, portNum);
+        }
+
+        public void run() {
             try {
                 // System.out.println("created a new client");
-                System.out.println("I am peer " + peerIDInt + " trying to connect to " +
-                hostname + " at port " + portNum);
+                startClient();
 
-                
-                requestSocket = new Socket(hostname, portNum);
+                System.out.println(
+                        "I am peer " + peerIDInt + " trying to connect to " + hostname + " at port " + portNum);
+
+                 
                 System.out.println("trying to connect to port " + portNum);
                 System.out.println("Connected to localhost in port " + portNum);
 
                 // try (InputStream input = new FileInputStream("config.properties")) {
 
-                //     Properties prop = new Properties();
+                // Properties prop = new Properties();
 
-                //     // load a properties file
-                //     prop.load(input);
+                // // load a properties file
+                // prop.load(input);
 
-                //     // get properties
-                //     this.fileName = prop.getProperty("FileName");
-                //     this.pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
-                //     this.fileSize = Integer.valueOf(prop.getProperty("FileSize"));
-                //     finalFileInBytes = new byte[fileSize];
-                //     numPieces = (int) Math.ceil(fileSize / pieceSize);
+                // // get properties
+                // this.fileName = prop.getProperty("FileName");
+                // this.pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
+                // this.fileSize = Integer.valueOf(prop.getProperty("FileSize"));
+                // finalFileInBytes = new byte[fileSize];
+                // numPieces = (int) Math.ceil(fileSize / pieceSize);
 
                 // } catch (IOException ex) {
-                //     ex.printStackTrace();
+                // ex.printStackTrace();
                 // }
 
                 byteOS.reset();
@@ -582,7 +629,6 @@ public class Peer {
                         // [4] message type
                         // [5 - 8] index field
                         client_din.read(incomingMessage, 0, 9);
-                        
 
                         byte[] messageType = Arrays.copyOfRange(incomingMessage, 4, 5); // getting the message type
 
@@ -614,7 +660,7 @@ public class Peer {
                             }
 
                             // for (int piece : neighborBitfieldMap.keySet()) {
-                            //     System.out.println(piece + " " + neighborBitfieldMap.get(piece));
+                            // System.out.println(piece + " " + neighborBitfieldMap.get(piece));
                             // }
 
                         } else if (Arrays.equals(messageType, messageTypeMap.get("unchoke"))) {

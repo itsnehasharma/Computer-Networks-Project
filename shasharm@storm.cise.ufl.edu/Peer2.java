@@ -4,7 +4,7 @@ import java.net.*;
 import java.nio.*;
 // import java.nio.file.Files;
 
-public class Peer {
+public class Peer2 {
 
     HashMap<Integer, Boolean> neighborBitfieldMap = new HashMap<Integer, Boolean>(); // will need to be changed to be a
                                                                                      // list of lists
@@ -21,6 +21,8 @@ public class Peer {
     static int numPieces = -1;
 
     public static void main(String[] args) throws Exception {
+
+        int peerIDInt = Integer.valueOf(args[2]);
 
         //get necessary properties from config
         try (InputStream input = new FileInputStream("config.properties")) {
@@ -40,16 +42,40 @@ public class Peer {
             ex.printStackTrace();
         }
 
+        BufferedReader reader = new BufferedReader(new FileReader("P.txt"));
 
-        int serverPortNum = Integer.valueOf(args[0]);
-        int clientPortNum = Integer.valueOf(args[1]);
-        int peerIDInt = Integer.valueOf(args[2]);
-        int isOwner = Integer.valueOf(args[3]);
-        String host = args[4];
+        String line = reader.readLine();
 
-        System.out.println("Serving at: " + serverPortNum + "\nlistening at: " + clientPortNum + "\npeer id: "
-                + peerIDInt + "\nis owner: " + isOwner + "\nconnecting to host: " + host);
-        ServerSocket listener = new ServerSocket(serverPortNum);
+        HashMap<Integer, String[]> peerInfoMap = new HashMap<Integer, String[]>();
+
+        while (line != null) {
+
+            // System.out.println(line);
+            String lineArr[] = line.split(" ");
+            int tempPeerID = Integer.valueOf(lineArr[0]);
+            String peerInfo[] = Arrays.copyOfRange(lineArr, 1, 4);
+            peerInfoMap.put(tempPeerID, peerInfo);
+
+            line = reader.readLine();
+        }
+
+        reader.close();
+
+        String[] myInfo = peerInfoMap.get(peerIDInt);
+        int portNum = Integer.valueOf(myInfo[1]);
+        int isOwner = Integer.valueOf(myInfo[2]);
+
+        System.out.println("I am " + peerIDInt);
+
+        // int serverPortNum = Integer.valueOf(args[0]);
+        // int clientPortNum = Integer.valueOf(args[1]);
+        // int peerIDInt = Integer.valueOf(args[2]);
+        // int isOwner = Integer.valueOf(args[3]);
+        // String host = args[4];
+
+        // System.out.println("Serving at: " + serverPortNum + "\nlistening at: " + clientPortNum + "\npeer id: "
+        //         + peerIDInt + "\nis owner: " + isOwner + "\nconnecting to host: " + host);
+        // ServerSocket listener = new ServerSocket(serverPortNum);
         int clientNum = 1;
 
         boolean clientConnect = false;
@@ -66,9 +92,20 @@ public class Peer {
 
                     if (!clientConnect) {
                         // new Client(clientPortNum, peerIDInt).run();
-                        new Client(clientPortNum, host, peerIDInt).run();
                         
-                        // client.run();
+                        for (int id : peerInfoMap.keySet()) {
+                            // System.out.println("[" + id + "] " + Arrays.toString(peerInfoMap.get(id)));
+                            
+                            if (id < peerIDInt){
+                                String[] peerInfo = peerInfoMap.get(id);
+                                int connectToPort = Integer.valueOf(peerInfo[1]);
+                                String connectToHost = peerInfo[0];
+                                System.out.println("I, + " + peerIDInt + " need to connect to: [" + id + "] " + Arrays.toString(peerInfoMap.get(id)));
+                                new Client(connectToPort, connectToHost, peerIDInt).run();
+                            }
+                
+                        }
+                                                // client.run();
                         clientConnect = true;
                     }
                     // new Server.Handler(listener.accept(), peerIDInt).start();
