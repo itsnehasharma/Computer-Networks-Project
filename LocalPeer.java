@@ -2,11 +2,11 @@ import java.util.*;
 
 import java.util.logging.*;
 
-
 import java.io.*;
 import java.net.*;
 import java.nio.*;
 // import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 
 public class LocalPeer {
 
@@ -17,6 +17,8 @@ public class LocalPeer {
 
     // keep track of all neighbors and what they have
     static HashMap<Integer, HashMap<Integer, Boolean>> neighborsPieceMap = new HashMap<Integer, HashMap<Integer, Boolean>>();
+
+    static HashMap<Integer, Socket> neighborMap = new HashMap<Integer, Socket>();
 
     // keep track of which file pieces self has
     static HashMap<Integer, byte[]> pieceMap = new HashMap<>();
@@ -122,23 +124,22 @@ public class LocalPeer {
         try {
             while (true) { // continue listening for incoming connections
                 if (isOwner == 1) { // file owners serve only as uploaders
-                   
+
                     Socket clientConnection = listener.accept();
                     clientList.add(clientConnection); // will be used to communicate with all clients
                     new Handler(clientConnection, peerIDInt).start(); // start a new Handler for each incoming
-                                                                       // connection
+                                                                      // connection
                 } else {
                     if (!clientConnect) {
                         // new Client(clientPortNum, peerIDInt).run();
 
-
-                        // pass in the expected peer id to check if it is correct 
+                        // pass in the expected peer id to check if it is correct
                         for (int id : peerInfoMap.keySet()) {
-                            
-                            String[] peerInfo = peerInfoMap.get(id);                            
+
+                            String[] peerInfo = peerInfoMap.get(id);
                             int peerIsOwner = Integer.valueOf(peerInfo[2]);
 
-                            if (peerIsOwner == 1){
+                            if (peerIsOwner == 1) {
                                 peersDone.put(peerIDInt, true);
                             } else {
                                 peersDone.put(peerIDInt, false);
@@ -147,13 +148,15 @@ public class LocalPeer {
                             // connect to each peer that already has a server running
                             // it to work this way, peers need to be established in peerNum order
                             if (id < peerIDInt) {
-                            
+
                                 String connectToHost = peerInfo[0];
                                 int connectToPort = Integer.valueOf(peerInfo[1]);
-                               
-                                // System.out.println("connecting to peerid " + id + "at host " + connectToHost + " at port " + connectToPort );
+
+                                // System.out.println("connecting to peerid " + id + "at host " + connectToHost
+                                // + " at port " + connectToPort );
                                 Socket requestSocket = new Socket(connectToHost, connectToPort);
                                 new Client(connectToPort, connectToHost, peerIDInt, requestSocket).start();
+                                neighborMap.put(id, requestSocket);
                             }
 
                         }
@@ -162,6 +165,7 @@ public class LocalPeer {
 
                     Socket clientConnection = listener.accept();
                     clientList.add(clientConnection); // will be used to communicate with all clients
+
                     new Handler(clientConnection, peerIDInt).start();
 
                 }
@@ -263,6 +267,7 @@ public class LocalPeer {
 
                         server_din.read(incomingMsg); // read message into the msg 32 byte buffer
                         clientPeerID = ByteBuffer.wrap(Arrays.copyOfRange(incomingMsg, 28, 32)).getInt();
+                        neighborMap.put(clientPeerID, connection);
 
                         logConnectionFrom(peerIDInt, clientPeerID);
 
@@ -283,7 +288,7 @@ public class LocalPeer {
                         byteOS.write(peerID);
 
                         byte[] handshake = byteOS.toByteArray();
-                        System.out.println("sending my peer id : "+ peerIDInt);
+                        // System.out.println("sending my peer id : "+ peerIDInt);
                         sendMessage(handshake); // send handshake message to client
 
                         byteOS.reset();
@@ -324,12 +329,11 @@ public class LocalPeer {
 
                         logBitfieldFrom(peerIDInt, clientPeerID);
                         neighborsPieceMap.put(clientPeerID, peerPieceMap); // global (Peer) connection map
-                        if (!peerPieceMap.containsValue(false)){
+                        if (!peerPieceMap.containsValue(false)) {
                             System.out.println(peerIDInt + " says that " + clientPeerID + "is done!");
                         }
                         // send bitfield message
-                        
-                        
+
                         byte bitfield[] = generateBitfield();
 
                         int payload = bitfield.length; // payload is done incorrectly when sending pieces //check???
@@ -363,34 +367,38 @@ public class LocalPeer {
 
                                 System.out.println("interested functionality");
                                 sendPiece(1); // this needs to be changed!
-                                incomingMsg = new byte[32];
+                                // incomingMsg = new byte[32];
                                 // din.reset();
                             } else if (Arrays.equals(incomingMessageType, messageTypeMap.get("not_interested"))) {
                                 System.out.println("not_interested functionality");
                             } else if (Arrays.equals(incomingMessageType, messageTypeMap.get("have"))) {
-                                System.out.println("have functionality");
 
-                                if (!peerPieceMap.containsValue(false)){
+                                int pieceNum = ByteBuffer.wrap(Arrays.copyOfRange(incomingMsg, 5, 9)).getInt();
+                                logHave(peerIDInt, clientPeerID, pieceNum);
+
+                                if (!peerPieceMap.containsValue(false)) {
                                     System.out.println(peerIDInt + " says that " + clientPeerID + "is done!");
                                 }
                             } else if (Arrays.equals(incomingMessageType, messageTypeMap.get("request"))) {
                                 // if not choked
-                                System.out.println("request message received ");
+                                // System.out.println("request message received ");
                                 byte[] pieceNumToSend = Arrays.copyOfRange(incomingMsg, 5, 9);
                                 int pieceNumInt = ByteBuffer.wrap(pieceNumToSend).getInt();
                                 // System.out.println("server recieved index from client:" + pieceNumInt);
-                                System.out.println(peerIDInt + " is sending piece : " + pieceNumInt + " to " + clientPeerID); //for testing
+                                // System.out.println(
+                                //         peerIDInt + " is sending piece : " + pieceNumInt + " to " + clientPeerID); // for
+                                //                                                                                    // testing
                                 sendPiece(pieceNumInt);
 
                                 peerPieceMap.replace(pieceNumInt, true);
-                                if (!peerPieceMap.containsValue(false)){
+                                if (!peerPieceMap.containsValue(false)) {
                                     peersDone.replace(clientPeerID, true);
-                                    if (!peersDone.containsValue(false)){
+                                    if (!peersDone.containsValue(false)) {
                                         System.out.println("shut down needed");
                                     }
-                                    
+
                                 }
-                                incomingMsg = new byte[5+pieceSize]; //this is the largest a message could be 
+                                incomingMsg = new byte[5 + pieceSize]; // this is the largest a message could be
 
                                 if (quit) {
                                     server_dout.flush();
@@ -438,12 +446,16 @@ public class LocalPeer {
         void sendPiece(int pieceNumInt) throws IOException {
             // 9 byte header and 128 byte message payload
             // int payload = 9 + 128; // this needs to be changed!
-            int payload = pieceSize;
+            // int payload = pieceSize;
+
+            byte[] pieceBuffer = pieceMap.get(pieceNumInt);
+
+            int payload = pieceBuffer.length+8;
             messageLength = ByteBuffer.allocate(4).putInt(payload).array();
             messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("piece")).array();
             indexField = ByteBuffer.allocate(4).putInt(pieceNumInt).array(); // index of starting point
-            System.out.println("send piece: sending piece " + pieceNumInt);
-            System.out.println("Piece map size " + pieceMap.size());
+            // System.out.println("send piece: sending piece " + pieceNumInt);
+            // System.out.println("Piece map size " + pieceMap.size());
             byteOS.reset(); // make sure byteOS is empty
             byteOS.write(messageLength);
             byteOS.write(messageType); // should equal binary 7 for "piece"
@@ -451,10 +463,16 @@ public class LocalPeer {
             // byteOS.write(fileInBytes, index, pieceSize); // writing the contents of the
             // file
             // System.out.println("sending piece " + pieceNumInt);
-            byte[] pieceBuffer = pieceMap.get(pieceNumInt);
+
+            // byteOS.write(pieceBuffer);
             byteOS.write(pieceBuffer);
 
             byte[] sendMessage = byteOS.toByteArray();
+            // byte[] b = Arrays.copyOfRange(sendMessage, 9, payload+8);
+            // String correct = new String (pieceBuffer, StandardCharsets.UTF_8);
+            // String piece = new String (b, StandardCharsets.UTF_8);
+            // System.out.println("\ncorrect: " + correct);
+            // System.out.println("\npiece at in send message buffer: " + piece);
             sendMessage(sendMessage); // sending the piece message
 
         }
@@ -474,6 +492,8 @@ public class LocalPeer {
         boolean bitfieldDone = false;
 
         boolean start = false;
+
+        boolean choked = false;
 
         // will be set from config and setup
         int peerIDInt = -1;
@@ -593,26 +613,26 @@ public class LocalPeer {
 
                     } else { // every message that is not the handshake
 
-                        
-                        // byte[] incomingMessage = new byte[130]; // will need to change the size of this
+                        // byte[] incomingMessage = new byte[130]; // will need to change the size of
+                        // this
 
-                        //read the first 5 bytes for message type and size, only done once  
+                        // read the first 5 bytes for message type and size, only done once
                         byte[] incomingMessage = new byte[5];
                         boolean quit = false;
 
                         while (client_din.read(incomingMessage) > -1) {
 
-                            
                             // retrieve message type
                             byte[] messageSize = Arrays.copyOfRange(incomingMessage, 0, 4);
                             int messageSizeInt = ByteBuffer.wrap(messageSize).getInt();
                             byte[] messageType = Arrays.copyOfRange(incomingMessage, 4, 5); // getting the message type
-                            
+
                             if (Arrays.equals(messageType, messageTypeMap.get("choke"))) {
                                 System.out.println("choke functionality");
-                            } else if (Arrays.equals(messageType, messageTypeMap.get("bitfield"))) { //BITFIELD, only done once 
+                                choked = true;
+                            } else if (Arrays.equals(messageType, messageTypeMap.get("bitfield"))) { // BITFIELD, only
+                                                                                                     // done once
 
-                              
                                 logBitfieldFrom(peerIDInt, serverPeerID);
 
                                 int bitfieldLength = ByteBuffer.wrap(messageSize).getInt();
@@ -624,12 +644,14 @@ public class LocalPeer {
 
                                 // update map with received bitfield from server
                                 for (int i = 0; i < bitfieldMessage.length; i++) {
-                                    String bs = String.format("%7s", Integer.toBinaryString(bitfieldMessage[i])).replace(' ', '0'); // ensure that 0 bits are counted
+                                    String bs = String.format("%7s", Integer.toBinaryString(bitfieldMessage[i]))
+                                            .replace(' ', '0'); // ensure that 0 bits are counted
                                     for (int j = 0; j < bs.length(); j++) {
                                         if (bs.charAt(j) == '0') {
                                             peerPieceMap.put(counter, false);
                                         } else if (bs.charAt(j) == '1') {
-                                            if (!(pieceMap.containsKey(counter))) { // if client doesn't already have this piece
+                                            if (!(pieceMap.containsKey(counter))) { // if client doesn't already have
+                                                                                    // this piece
                                                 peerPieceList.add(counter); // this is used to request pieces
                                             }
                                             peerPieceMap.put(counter, true);
@@ -643,49 +665,58 @@ public class LocalPeer {
 
                                 neighborsPieceMap.put(serverPeerID, peerPieceMap); // update global map
                                 // for (int i : peerPieceMap.keySet()){
-                                //     System.out.println(serverPeerID + " " + i + " " + peerPieceMap.get(i));
+                                // System.out.println(serverPeerID + " " + i + " " + peerPieceMap.get(i));
                                 // }
-                                if (!peerPieceMap.containsValue(false)){
+                                if (!peerPieceMap.containsValue(false)) {
                                     System.out.println(peerIDInt + " says that " + serverPeerID + "is done!");
                                 }
-                                //send the first request after sending the receiving the bitfield message 
+                                // send the first request after sending the receiving the bitfield message
                                 int requestPieceNum = selectRandomPieceNum();
-                                if (requestPieceNum > 0){
-                                    // System.out.println("Client " + peerIDInt + "is requesting piece " + requestPieceNum + "from " + serverPeerID);
-                                    messageLength = ByteBuffer.allocate(4).putInt(4).array(); //allocate 4 bytes for index 
-                                    messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("request")).array();
-                                    byte[] requestIndex = ByteBuffer.allocate(4).putInt(requestPieceNum).array();
-
-                                    byteOS.reset();
-                                    byteOS.write(messageLength);
-                                    byteOS.write(messageType);
-                                    byteOS.write(requestIndex);
-
-                                    byte[] msg = byteOS.toByteArray();
-                                    sendMessage(msg); // requesting the piece
-                                    byteOS.reset();
+                                while (requestPieceNum < 0 || pieceMap.containsKey(requestPieceNum)) {
+                                    System.out.println("loop");
+                                    requestPieceNum = selectRandomPieceNum();
                                 }
+                                // System.out.println("Client " + peerIDInt + "is requesting piece " +
+                                // requestPieceNum + "from " + serverPeerID);
+                                messageLength = ByteBuffer.allocate(4).putInt(4).array(); // allocate 4 bytes for index
+                                messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("request")).array();
+                                byte[] requestIndex = ByteBuffer.allocate(4).putInt(requestPieceNum).array();
+
+                                byteOS.reset();
+                                byteOS.write(messageLength);
+                                byteOS.write(messageType);
+                                byteOS.write(requestIndex);
+
+                                byte[] msg = byteOS.toByteArray();
+                                sendMessage(msg); // requesting the piece
+                                byteOS.reset();
 
                             } else if (Arrays.equals(messageType, messageTypeMap.get("unchoke"))) {
                                 System.out.println("unchoke functionality");
+                                choked = false;
                             } else if (Arrays.equals(messageType, messageTypeMap.get("have"))) {
-                                System.out.println("have functionality");
 
-                                if (!peerPieceMap.containsValue(false)){
-                                    System.out.println(peerIDInt + " says that " + serverPeerID + "is done!");
-                                }
+                                byte pieceNumBuff[] = new byte[4];
+                                client_din.read(pieceNumBuff);
+                                int pieceNum = ByteBuffer.wrap(pieceNumBuff).getInt();
+                                logHave(peerIDInt, serverPeerID, pieceNum);
+
+                                // if (!peerPieceMap.containsValue(false)){
+                                // System.out.println(peerIDInt + " says that " + serverPeerID + "is done!");
+                                // }
 
                                 // add the peice to the map, and then check if its done
                             } else if (Arrays.equals(messageType, messageTypeMap.get("piece"))) {
 
                                 // System.out.println ("piece functionality");
 
-                                //client_din.read(incomingMessage, 5, 9); // check on this
+                                // client_din.read(incomingMessage, 5, 9); // check on this
 
                                 byte[] fileIndex = Arrays.copyOfRange(incomingMessage, 5, 9);
-                                int incomingPieceNumber = ByteBuffer.wrap(fileIndex).getInt(); // number corresponds to the number in
-                                                                                 // the
-                                                                                 // map
+                                int incomingPieceNumber = ByteBuffer.wrap(fileIndex).getInt(); // number corresponds to
+                                                                                               // the number in
+                                // the
+                                // map
                                 // System.out.println("recieved piece " + index);
                                 // System.out.println("client recieved index from server: " + index);
                                 // din.read(finalFileInBytes, index, pieceSize); //should read into file byte
@@ -694,26 +725,40 @@ public class LocalPeer {
                                 // largestByte = index+pieceSize; //only up to the largest byte will be exported
                                 // to the file.
                                 //
-                                // System.out.println("Client has piece " + incomingPieceNumber + ": " + pieceMap.containsKey(incomingPieceNumber));
-                                // System.out.println(peerIDInt + " recieved piece " + incomingPieceNumber + " from " + serverPeerID);
+                                // System.out.println("Client has piece " + incomingPieceNumber + ": " +
+                                // pieceMap.containsKey(incomingPieceNumber));
+                                // System.out.println(
+                                //         peerIDInt + " recieved piece " + incomingPieceNumber + " from " + serverPeerID);
                                 logDownload(peerIDInt, serverPeerID, incomingPieceNumber);
                                 // client_din.read(buffer, 0, pieceSize);
-                                buffer = Arrays.copyOfRange(incomingMessage, 9, messageSizeInt);
+                                byte[] newPiece = Arrays.copyOfRange(incomingMessage, 9, messageSizeInt + 1);
+
+                                // String piece = new String (newPiece, StandardCharsets.UTF_8);
+                                // System.out.println("\npiece at client newpiece: " + piece);
                                 // piecesOwned++;
                                 // System.out.println("bytes read: " + bytesRead);
 
-                                // done to avoid copy mishaps
-                                byte[] newPiece = new byte[pieceSize];
-                                newPiece = buffer.clone();
-                                pieceMap.put(incomingPieceNumber, newPiece);
-                                peerPieceList.remove(peerPieceList.indexOf(incomingPieceNumber));
+                                // // done to avoid copy mishaps
+                                //  = buffer.clone();
+                                if (!pieceMap.containsKey(incomingPieceNumber)) { // don't want doubles
+                                    pieceMap.put(incomingPieceNumber, newPiece);
+                                    peerPieceList.remove(peerPieceList.indexOf(incomingPieceNumber));
+                                }
+                                // tellAllNeighbors(incomingPieceNumber);
+                                // System.out.println("Client has piece " + incomingPieceNumber + ": " +
+                                // pieceMap.containsKey(incomingPieceNumber));
 
-                                // System.out.println("Client has piece " + incomingPieceNumber + ": " + pieceMap.containsKey(incomingPieceNumber));
+                                // send a new request
 
                                 int requestPieceNum = selectRandomPieceNum();
-                                if (requestPieceNum > 0){
-                                    System.out.println("Client " + peerIDInt + "is requesting piece " + requestPieceNum + "from " + serverPeerID);
-                                    messageLength = ByteBuffer.allocate(4).putInt(4).array(); //allocate 4 bytes for index 
+                                
+
+                                if (requestPieceNum > 0) {
+
+                                    // System.out.println("Client " + peerIDInt + "is requesting piece " + requestPieceNum
+                                    //         + "from " + serverPeerID);
+                                    messageLength = ByteBuffer.allocate(4).putInt(4).array(); // allocate 4 bytes for
+                                                                                              // index
                                     messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("request")).array();
                                     byte[] requestIndex = ByteBuffer.allocate(4).putInt(requestPieceNum).array();
 
@@ -725,6 +770,8 @@ public class LocalPeer {
                                     byte[] msg = byteOS.toByteArray();
                                     sendMessage(msg); // requesting the piece
                                     byteOS.reset();
+                                } else {
+                                    System.out.println("-1 for " + serverPeerID);
                                 }
                                 // send another request message
                                 // System.out.print("request index: ");
@@ -733,35 +780,35 @@ public class LocalPeer {
                                 // int pieceNum = sc.nextInt();
                                 // System.out.println("num pieces: " +numPieces);
                                 // if (piecesOwned < numPieces) {
-                                //     int pieceNum = index + 1; // request the next index
-                                //     // System.out.println("requesting piece " + pieceNum);
-                                //     messageLength = ByteBuffer.allocate(4).putInt(128).array();
-                                //     messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("request")).array(); // should
-                                //                                                                                      // be
-                                //                                                                                      // 6
-                                //     // indexField = ByteBuffer.allocate(4).putInt(start).array(); //index of
-                                //     // starting point
-                                //     indexField = ByteBuffer.allocate(4).putInt(pieceNum).array(); // index of piece num
+                                // int pieceNum = index + 1; // request the next index
+                                // // System.out.println("requesting piece " + pieceNum);
+                                // messageLength = ByteBuffer.allocate(4).putInt(128).array();
+                                // messageType =
+                                // ByteBuffer.allocate(1).put(messageTypeMap.get("request")).array(); // should
+                                // // be
+                                // // 6
+                                // // indexField = ByteBuffer.allocate(4).putInt(start).array(); //index of
+                                // // starting point
+                                // indexField = ByteBuffer.allocate(4).putInt(pieceNum).array(); // index of
+                                // piece num
 
-                                //     // writing request message to the byte output stream
-                                //     byteOS.reset();
-                                //     byteOS.write(messageLength);
-                                //     byteOS.write(messageType);
-                                //     byteOS.write(indexField);
+                                // // writing request message to the byte output stream
+                                // byteOS.reset();
+                                // byteOS.write(messageLength);
+                                // byteOS.write(messageType);
+                                // byteOS.write(indexField);
 
-                                //     byte[] msg = byteOS.toByteArray();
-                                //     sendMessage(msg); // requesting the piece
+                                // byte[] msg = byteOS.toByteArray();
+                                // sendMessage(msg); // requesting the piece
                                 // } else {
-                                //     quit = true;
+                                // quit = true;
                                 // }
-                                System.out.println("piece map size: " + pieceMap.size());
-                                System.out.println("num pieces: " + numPieces);
-                                if (pieceMap.size() == numPieces){ //has all the pieces 
+                                // System.out.println("piece map size: " + pieceMap.size());
+                                // System.out.println("num pieces: " + numPieces);
+                                if (pieceMap.size() == numPieces) { // has all the pieces
                                     // clientLoop = false;
                                     quit = true;
                                 }
-                                
-                                
 
                             }
 
@@ -771,16 +818,17 @@ public class LocalPeer {
                                 logDone(peerIDInt);
                                 byteOS.reset();
 
-                                // get all the pieces from the piece map 
+                                // get all the pieces from the piece map
                                 for (int i = 1; i <= pieceMap.size(); i++) {
                                     byteOS.write(pieceMap.get(i)); // write all pieces from map into byteOS
                                 }
                                 byte[] finalFile = byteOS.toByteArray();
 
-                                String pathname = newDir.getAbsolutePath() + "/" + "copy.txt"; //stored in the user's folder 
+                                String pathname = newDir.getAbsolutePath() + "/" + "copy.txt"; // stored in the user's
+                                                                                               // folder
                                 File copiedFile = new File(pathname);
 
-                                //write out the final file
+                                // write out the final file
                                 try (FileOutputStream fos = new FileOutputStream(copiedFile)) {
                                     fos.write(finalFile);
                                 }
@@ -794,7 +842,7 @@ public class LocalPeer {
                                 clientLoop = false;
                             }
 
-                            incomingMessage = new byte [9+pieceSize];
+                            incomingMessage = new byte[100 + pieceSize];
                         }
                     }
                 }
@@ -826,14 +874,14 @@ public class LocalPeer {
             }
         }
 
-        int selectRandomPieceNum(){
+        int selectRandomPieceNum() {
             int counter = 0;
-            while (counter < peerPieceList.size()){
+            while (counter < peerPieceList.size()) {
                 int pieceNum = peerPieceList.get(rand.nextInt(peerPieceList.size()));
-                if (!pieceMap.containsKey(pieceNum)){ //if we dont have this piece 
+                if (!pieceMap.containsKey(pieceNum)) { // if we dont have this piece
                     return pieceNum;
                 } else {
-                    //remove the piece from the list if we already have it 
+                    // remove the piece from the list if we already have it
                     peerPieceList.remove(peerPieceList.indexOf(pieceNum));
                 }
                 counter++;
@@ -878,10 +926,9 @@ public class LocalPeer {
             }
 
             if (pieceMap.containsKey(i)) { // if the map contains the key, add 1, if not add 0
-                if (i == 1) { System.out.println ("cintains 1");}
                 bitstring += "1";
             } else {
-                System.out.println ("no " + i);
+                // System.out.println ("no " + i);
                 bitstring += "0";
             }
 
@@ -906,7 +953,24 @@ public class LocalPeer {
 
         byte[] bitfield = byteOS.toByteArray();
         return bitfield;
+    }
 
+    static void tellAllNeighbors(int haveIndex) throws IOException {
+        for (int n : neighborMap.keySet()) {
+            Socket tempSocket = neighborMap.get(n);
+            DataOutputStream all_dout = new DataOutputStream(tempSocket.getOutputStream());
+
+            byte[] messageLength = ByteBuffer.allocate(4).putInt(4).array(); // allocate 4 bytes for index
+            byte[] messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("have")).array();
+            byte[] requestIndex = ByteBuffer.allocate(4).putInt(haveIndex).array();
+            byteOS.reset();
+            byteOS.write(messageLength);
+            byteOS.write(messageType);
+            byteOS.write(requestIndex);
+
+            byte[] msg = byteOS.toByteArray();
+            all_dout.write(msg);
+        }
     }
 
     static void logConnectionTo(int peerID1, int peerID2) {

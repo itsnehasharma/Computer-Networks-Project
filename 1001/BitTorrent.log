@@ -1,8 +1,12 @@
-Dec 08, 2020 3:54:48 PM LocalPeer logConnectionFrom
+Dec 08, 2020 5:16:45 PM LocalPeer logConnectionFrom
 INFO: Peer [1001] is connected from Peer [1002]
-Dec 08, 2020 3:54:48 PM LocalPeer logBitfieldFrom
+Dec 08, 2020 5:16:45 PM LocalPeer logBitfieldFrom
 INFO: Peer [1001] has received a bitfield message from [1002]
-Dec 08, 2020 3:55:00 PM LocalPeer logConnectionFrom
+Dec 08, 2020 5:16:49 PM LocalPeer logConnectionFrom
 INFO: Peer [1001] is connected from Peer [1003]
-Dec 08, 2020 3:55:00 PM LocalPeer logBitfieldFrom
+Dec 08, 2020 5:16:49 PM LocalPeer logBitfieldFrom
 INFO: Peer [1001] has received a bitfield message from [1003]
+Dec 08, 2020 5:17:38 PM LocalPeer logConnectionFrom
+INFO: Peer [1001] is connected from Peer [1004]
+Dec 08, 2020 5:17:38 PM LocalPeer logBitfieldFrom
+INFO: Peer [1001] has received a bitfield message from [1004]
