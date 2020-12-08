@@ -1,9 +1,21 @@
 import java.io.*;
 import java.util.*;
+import java.util.logging.FileHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
 
 public class testing {
 
     public static void main(String[] args) throws IOException {
+
+        FileHandler fileTxt;
+        SimpleFormatter formatterTxt;
+
+        final Logger LOGGER = 
+                Logger.getLogger(testing.class.getName());
+        
+        LOGGER.setLevel(Level.INFO);
 
         int peerID = 1005;
         // get necessary properties from config
@@ -35,3 +47,4 @@ public class testing {
         }
     }
 }
+

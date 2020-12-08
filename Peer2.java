@@ -1,10 +1,15 @@
 import java.util.*;
+
+import java.util.logging.*;
 import java.io.*;
 import java.net.*;
 import java.nio.*;
 // import java.nio.file.Files;
 
 public class Peer2 {
+
+    static Logger logger = Logger.getLogger("BitTorrentLog");
+    static FileHandler fh;
 
     HashMap<Integer, Boolean> neighborBitfieldMap = new HashMap<Integer, Boolean>(); // will need to be changed to be a
                                                                                      // list of lists
@@ -19,12 +24,30 @@ public class Peer2 {
     static int pieceSize = -1;
     static int fileSize = -1;
     static int numPieces = -1;
+    static int piecesOwned = 0;
 
     public static void main(String[] args) throws Exception {
 
+        try {
+
+            // This block configure the logger with handler and formatter
+            fh = new FileHandler("BitTorrent.log");
+            logger.addHandler(fh);
+            SimpleFormatter formatter = new SimpleFormatter();
+            fh.setFormatter(formatter);
+
+            // the following statement is used to log any messages
+            // logger.info("My first log");
+
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         int peerIDInt = Integer.valueOf(args[0]);
 
-        //get necessary properties from config
+        // get necessary properties from config
         try (InputStream input = new FileInputStream("config.properties")) {
 
             Properties prop = new Properties();
@@ -78,8 +101,9 @@ public class Peer2 {
         // int isOwner = Integer.valueOf(args[3]);
         // String host = args[4];
 
-        // System.out.println("Serving at: " + serverPortNum + "\nlistening at: " + clientPortNum + "\npeer id: "
-        //         + peerIDInt + "\nis owner: " + isOwner + "\nconnecting to host: " + host);
+        // System.out.println("Serving at: " + serverPortNum + "\nlistening at: " +
+        // clientPortNum + "\npeer id: "
+        // + peerIDInt + "\nis owner: " + isOwner + "\nconnecting to host: " + host);
         ServerSocket listener = new ServerSocket(portNum);
         int clientNum = 1;
 
@@ -97,20 +121,21 @@ public class Peer2 {
 
                     if (!clientConnect) {
                         // new Client(clientPortNum, peerIDInt).run();
-                        
+
                         for (int id : peerInfoMap.keySet()) {
                             System.out.println("[" + id + "] " + Arrays.toString(peerInfoMap.get(id)));
-                            if (id < peerIDInt){
+                            if (id < peerIDInt) {
 
                                 String[] peerInfo = peerInfoMap.get(id);
                                 int connectToPort = Integer.valueOf(peerInfo[1]);
                                 String connectToHost = peerInfo[0];
-                                System.out.println("I," + peerIDInt + " need to connect to: [" + id + "] " + Arrays.toString(peerInfoMap.get(id)));
+                                System.out.println("I," + peerIDInt + " need to connect to: [" + id + "] "
+                                        + Arrays.toString(peerInfoMap.get(id)));
                                 new Client(connectToPort, connectToHost, peerIDInt).start();
                             }
 
-                    }
-                                                // client.run();
+                        }
+                        // client.run();
                         clientConnect = true;
                     }
                     // new Server.Handler(listener.accept(), peerIDInt).start();
@@ -159,18 +184,18 @@ public class Peer2 {
             // // loading properties from config file
             // try (InputStream input = new FileInputStream("config.properties")) {
 
-            //     Properties prop = new Properties();
+            // Properties prop = new Properties();
 
-            //     // load a properties file
-            //     prop.load(input);
+            // // load a properties file
+            // prop.load(input);
 
-            //     // get properties
-            //     this.fileName = prop.getProperty("FileName");
-            //     this.pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
-            //     this.fileSize = Integer.valueOf(prop.getProperty("FileSize"));
+            // // get properties
+            // this.fileName = prop.getProperty("FileName");
+            // this.pieceSize = Integer.valueOf(prop.getProperty("PieceSize"));
+            // this.fileSize = Integer.valueOf(prop.getProperty("FileSize"));
 
             // } catch (IOException ex) {
-            //     ex.printStackTrace();
+            // ex.printStackTrace();
             // }
 
             // over here put file into map
@@ -399,7 +424,7 @@ public class Peer2 {
 
         void sendPiece(int pieceNumInt) throws IOException {
             // 9 byte header and 128 byte message payload
-            int payload = 9 + 128; //this needs to be changed! 
+            int payload = 9 + 128; // this needs to be changed!
             messageLength = ByteBuffer.allocate(4).putInt(payload).array();
             messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("piece")).array();
             indexField = ByteBuffer.allocate(4).putInt(pieceNumInt).array(); // index of starting point
@@ -421,7 +446,7 @@ public class Peer2 {
 
     }
 
-    static class Client extends Thread{
+    static class Client extends Thread {
         Socket requestSocket;
         DataInputStream client_din;
         DataOutputStream client_dout;
@@ -452,9 +477,6 @@ public class Peer2 {
         // int pieceSize = -1;
         // int numPieces = 0;
 
-        int piecesReceived = 0;
-
-        
         HashMap<Integer, Boolean> neighborBitfieldMap = new HashMap<Integer, Boolean>(); // will need to be changed to
                                                                                          // be a list of lists
         // HashMap<Integer, ArrayList<Integer>> neighborBitfieldMap = new
@@ -486,7 +508,7 @@ public class Peer2 {
             this.peerIDInt = peerIDInt;
             this.hostname = hostname;
             this.portNum = portNum;
-           
+
         }
 
         private void startClient() throws UnknownHostException, IOException {
@@ -501,7 +523,6 @@ public class Peer2 {
                 System.out.println(
                         "I am peer " + peerIDInt + " trying to connect to " + hostname + " at port " + portNum);
 
-                 
                 System.out.println("trying to connect to port " + portNum);
                 System.out.println("Connected to localhost in port " + portNum);
 
@@ -583,8 +604,14 @@ public class Peer2 {
 
                         // System.out.println("Receieved peer id:" + Arrays.toString(checkServerID));
                         // System.out.println("Expected peer id:" + Arrays.toString(serverPeerID));
+                        int serverID = ByteBuffer.wrap(serverPeerID).getInt();
+                        logConnectionTo(peerIDInt, serverID);
+
+                        //need to fix this method 
                         if (Arrays.equals(serverPeerID, checkServerID)) {
                             System.out.println("peer ID confirmed.");
+                            
+                            
                             // ArrayList<Integer> tempList = new ArrayList<Integer>();
                             // neighborBitfieldMap.put(checkServerIDInt, tempList);
 
@@ -684,7 +711,7 @@ public class Peer2 {
                             // to the file.
                             // }
                             client_din.read(buffer, 0, pieceSize);
-                            piecesReceived++;
+                            piecesOwned++;
                             // System.out.println("bytes read: " + bytesRead);
                             byte[] newPiece = new byte[pieceSize];
                             newPiece = buffer.clone();
@@ -695,7 +722,7 @@ public class Peer2 {
                             // int start = sc.nextInt();
                             // int pieceNum = sc.nextInt();
                             // System.out.println("num pieces: " +numPieces);
-                            if (piecesReceived < numPieces) {
+                            if (piecesOwned < numPieces) {
                                 int pieceNum = index + 1; // request the next index
                                 // System.out.println("requesting piece " + pieceNum);
                                 messageLength = ByteBuffer.allocate(4).putInt(128).array();
@@ -763,15 +790,17 @@ public class Peer2 {
 
                 }
             } catch (ConnectException e) {
+                logger.warning("Connection refused. No server initiated.");
                 System.err.println("Connection refused. You need to initiate a server first.");
             } catch (UnknownHostException unknownHost) {
+                logger.warning("Connection refused. Unknown host.");
                 System.err.println("You are trying to connect to an unknown host!");
             } catch (IOException ioException) {
                 ioException.printStackTrace();
             } finally {
                 // Close connections
                 try {
-                    requestSocket.close();
+                    requestSocket.close(); 
                 } catch (IOException ioException) {
                     ioException.printStackTrace();
                 }
@@ -812,13 +841,51 @@ public class Peer2 {
         return map;
     }
 
-    // static void sendMessage(byte[] msg) {
-    //     try {
-    //         dout.write(msg);
+    static void logConnectionTo(int peerID1, int peerID2){
+        logger.info("Peer [" + peerID1 + "] makes a connection to Peer [" + peerID2 + "]");
+    }
 
-    //     } catch (IOException ioException) {
-    //         ioException.printStackTrace();
-    //     }
-    // }
+    //acting as server
+    static void logConnectionFrom(int peerID1, int peerID2){
+        logger.info("Peer [" + peerID1 + "] is connected from Peer [" + peerID2 + "]");
+    }
+
+    static void logchangeNeighbors(int peerID1, int[] peerList){
+        logger.info("Peer [" + peerID1 + "] has the preferred neighbors [" + Arrays.toString(peerList) + "]");
+    }
+
+    static void logchangeOpUnchokeNeighbor(int peerID1, int opUnNeighbor){
+        logger.info("Peer [" + peerID1 + "] has the optimistically unchoked neighbor [" + opUnNeighbor + "]");
+    }
+
+    static void logUnchoked(int peerID1, int peerID2){
+        logger.info("Peer [" + peerID1 + "] is unchoked by [" + peerID2 + "]");
+    }
+
+    static void logChoked(int peerID1, int peerID2){
+        logger.info("Peer [" + peerID1 + "] is choked by [" + peerID2 + "]");
+    }
+
+    static void logHave(int peerID1, int peerID2, int pieceNum){
+        logger.info("Peer [" + peerID1 + "] received the 'have' message from [" + peerID2 + "] for the piece [" + pieceNum + "]");
+    }
+
+    static void logInterested(int peerID1, int peerID2){
+        logger.info("Peer [" + peerID1 + "] received the 'interested' message from [" + peerID2);
+    }
+
+    static void logNotInterested(int peerID1, int peerID2){
+        logger.info("Peer [" + peerID1 + "] received the 'not interested' message from [" + peerID2);
+    }
+
+    static void logDownload(int peerID1, int peerID2, int pieceNum){
+        logger.info("Peer [" + peerID1 + "] has downloaded the piece [" + pieceNum + "] from [" + peerID2 + "]. " +
+            "Now the number of pieces it has is " + piecesOwned);
+    }
+
+    static void logDone(int peerID){
+        logger.info("Peer [" + peerID + "] has downloaded the complete file.");
+    }
+
 
 }

@@ -1,0 +1,10 @@
+Dec 07, 2020 9:15:08 PM LocalPeer logConnectionTo
+INFO: Peer [1002] made a connection to Peer [1001]
+Dec 07, 2020 9:15:08 PM LocalPeer logBitfieldFrom
+INFO: Peer [1002] has received a bitfield message from [1001]
+Dec 07, 2020 9:15:12 PM LocalPeer logConnectionFrom
+INFO: Peer [1002] is connected from Peer [1003]
+Dec 07, 2020 9:15:12 PM LocalPeer logBitfieldFrom
+INFO: Peer [1002] has received a bitfield message from [1003]
+Dec 07, 2020 9:15:16 PM LocalPeer logConnectionFrom
+INFO: Peer [1002] is connected from Peer [1380535879]

@@ -452,7 +452,7 @@ public class Peer2 {
         // int pieceSize = -1;
         // int numPieces = 0;
 
-        int piecesReceived = 0;
+        int piecesOwned = 0;
 
         
         HashMap<Integer, Boolean> neighborBitfieldMap = new HashMap<Integer, Boolean>(); // will need to be changed to
@@ -684,7 +684,7 @@ public class Peer2 {
                             // to the file.
                             // }
                             client_din.read(buffer, 0, pieceSize);
-                            piecesReceived++;
+                            piecesOwned++ 
                             // System.out.println("bytes read: " + bytesRead);
                             byte[] newPiece = new byte[pieceSize];
                             newPiece = buffer.clone();
@@ -695,7 +695,7 @@ public class Peer2 {
                             // int start = sc.nextInt();
                             // int pieceNum = sc.nextInt();
                             // System.out.println("num pieces: " +numPieces);
-                            if (piecesReceived < numPieces) {
+                            if (piecesOwned < numPieces) {
                                 int pieceNum = index + 1; // request the next index
                                 // System.out.println("requesting piece " + pieceNum);
                                 messageLength = ByteBuffer.allocate(4).putInt(128).array();
