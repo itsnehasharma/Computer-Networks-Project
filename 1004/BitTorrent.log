@@ -1,6 +1,12 @@
-Dec 07, 2020 9:15:17 PM LocalPeer logConnectionTo
-INFO: Peer [1004] made a connection to Peer [1001]
-Dec 07, 2020 9:15:17 PM LocalPeer logConnectionTo
-INFO: Peer [1004] made a connection to Peer [0]
-Dec 07, 2020 9:15:17 PM LocalPeer logConnectionTo
+Dec 08, 2020 10:15:59 AM LocalPeer logConnectionTo
 INFO: Peer [1004] made a connection to Peer [1003]
+Dec 08, 2020 10:15:59 AM LocalPeer logConnectionTo
+INFO: Peer [1004] made a connection to Peer [1001]
+Dec 08, 2020 10:15:59 AM LocalPeer logConnectionTo
+INFO: Peer [1004] made a connection to Peer [1002]
+Dec 08, 2020 10:15:59 AM LocalPeer logBitfieldFrom
+INFO: Peer [1004] has received a bitfield message from [1002]
+Dec 08, 2020 10:15:59 AM LocalPeer logBitfieldFrom
+INFO: Peer [1004] has received a bitfield message from [1001]
+Dec 08, 2020 10:15:59 AM LocalPeer logBitfieldFrom
+INFO: Peer [1004] has received a bitfield message from [1003]

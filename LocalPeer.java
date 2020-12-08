@@ -263,6 +263,7 @@ public class LocalPeer {
                         byte[] peerID = ByteBuffer.allocate(4).putInt(peerIDInt).array(); // peer ID in byte array
 
                         // write all information to a byte array
+                        byteOS.reset();
                         byteOS.write(header);
                         byteOS.write(zerobits);
                         byteOS.write(peerID);
@@ -530,9 +531,8 @@ public class LocalPeer {
                         Arrays.fill(zerobits, (byte) 0);
                         byte[] peerID = ByteBuffer.allocate(4).putInt(peerIDInt).array(); // peer ID in byte array
                                                                                           // format
-
+                        System.out.println("client sending my peer id: " + peerIDInt);
                         // write all information to a byte array
-                        byteOS.flush();
                         byteOS.reset();
                         byteOS.write(header);
                         byteOS.write(zerobits);
@@ -550,7 +550,7 @@ public class LocalPeer {
                         // getting server peerID
                         byte[] checkServerID = Arrays.copyOfRange(incomingHandshake, 28, 32);
                         serverPeerID = ByteBuffer.wrap(checkServerID).getInt();
-                        System.out.println("server: " + serverPeerID);
+                        System.out.println("received server: " + serverPeerID);
                         logConnectionTo(peerIDInt, serverPeerID);
 
                         handshakeDone = true; // handshake received, do not do this part again
@@ -579,7 +579,11 @@ public class LocalPeer {
 
                     } else { // every message that is not the handshake
 
-                        byte[] incomingMessage = new byte[130]; // will need to change the size of this
+                        
+                        // byte[] incomingMessage = new byte[130]; // will need to change the size of this
+
+                        //read the first 5 bytes for message type and size 
+                        byte[] incomingMessage = new byte[5]; // will need to change the size of this
 
                         // create a method called "look for piece" looking for a piece to send the first
                         // request
@@ -589,34 +593,37 @@ public class LocalPeer {
                             boolean quit = false;
 
                             // client sends the first message, for now, an interested message
-                            if (!start) {
-                                messageLength = ByteBuffer.allocate(4).putInt(128).array();
-                                messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("interested")).array();
+                            // if (!start) {
+                            //     messageLength = ByteBuffer.allocate(4).putInt(128).array();
+                            //     messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("interested")).array();
 
-                                byteOS.reset();
-                                byteOS.write(messageLength);
-                                byteOS.write(messageType);
+                            //     byteOS.reset();
+                            //     byteOS.write(messageLength);
+                            //     byteOS.write(messageType);
 
-                                byte[] msg = byteOS.toByteArray();
-                                sendMessage(msg); // requesting the piece
-                                // System.out.println("sending interested");
+                            //     byte[] msg = byteOS.toByteArray();
+                            //     sendMessage(msg); // requesting the piece
+                            //     // System.out.println("sending interested");
 
-                                start = true;
-                            }
+                            //     start = true;
+                            // }
 
                             // retrieve message type
+                            byte[] messageSize = Arrays.copyOfRange(incomingMessage, 0, 4);
                             byte[] messageType = Arrays.copyOfRange(incomingMessage, 4, 5); // getting the message type
-
+                            
                             if (Arrays.equals(messageType, messageTypeMap.get("choke"))) {
                                 System.out.println("choke functionality");
                             } else if (Arrays.equals(messageType, messageTypeMap.get("bitfield"))) {
 
                                 // length is in byte indeces [0 - 3]
                                 logBitfieldFrom(peerIDInt, serverPeerID);
-                                int bitfieldLength = ByteBuffer.wrap(Arrays.copyOfRange(incomingMessage, 0, 4)).getInt();
+                                // int bitfieldLength = ByteBuffer.wrap(Arrays.copyOfRange(incomingMessage, 0, 4)).getInt();
+                                int bitfieldLength = ByteBuffer.wrap(messageSize).getInt();
                                 byte[] bitfieldMessage = new byte[bitfieldLength];
 
                                 // read in the rest of the message
+                                // CHECK TO SEE PAYLOAD FOR BITFIELD MESSAGE 
                                 client_din.read(bitfieldMessage);
                                 int counter = 1;
 
@@ -642,6 +649,8 @@ public class LocalPeer {
                                 }
 
                                 neighborsPieceMap.put(serverPeerID, peerPieceMap); // update global map
+
+                                //send the first request after sending the receiving the bitfield message 
 
                             } else if (Arrays.equals(messageType, messageTypeMap.get("unchoke"))) {
                                 System.out.println("unchoke functionality");
