@@ -1,0 +1,10 @@
+# Ignore logs
+*.log
+
+# Ignore class files 
+*.class
+
+cisekey
+cisekey.pub
+
+ignore/

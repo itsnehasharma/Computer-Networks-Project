@@ -324,8 +324,10 @@ public class Peer {
 
                         logBitfieldFrom(peerIDInt, clientPeerID);
                         neighborsPieceMap.put(clientPeerID, peerPieceMap); // global (Peer) connection map
+
                         if (!peerPieceMap.containsValue(false)) {
                             System.out.println(peerIDInt + " says that " + clientPeerID + "is done!");
+                            peersDone.replace(clientPeerID, true); // this peer is done
                         }
 
                         // send bitfield message
@@ -367,17 +369,21 @@ public class Peer {
                                 // din.reset();
                             } else if (Arrays.equals(incomingMessageType, messageTypeMap.get("not_interested"))) {
                                 System.out.println("not_interested functionality");
-                            } else if (Arrays.equals(incomingMessageType, messageTypeMap.get("have"))) {
+                            } else if (Arrays.equals(incomingMessageType, messageTypeMap.get("have"))) { // SERVER HAVE
 
                                 int pieceNum = ByteBuffer.wrap(Arrays.copyOfRange(incomingMsg, 5, 9)).getInt();
                                 logHave(peerIDInt, clientPeerID, pieceNum);
 
+                                peerPieceMap.replace(pieceNum, true); // the peer now has this piece
                                 if (!peerPieceMap.containsValue(false)) {
                                     System.out.println(peerIDInt + " says that " + clientPeerID + "is done!");
                                 }
-                            } else if (Arrays.equals(incomingMessageType, messageTypeMap.get("request"))) {
+
+                                incomingMsg = new byte[20 + pieceSize]; // just for buffer
+
+                            } else if (Arrays.equals(incomingMessageType, messageTypeMap.get("request"))) { // REQUEST
                                 // if not choked
-                                // System.out.println("request message received ");
+                                System.out.println("request message received ");
                                 byte[] pieceNumToSend = Arrays.copyOfRange(incomingMsg, 5, 9);
                                 int pieceNumInt = ByteBuffer.wrap(pieceNumToSend).getInt();
                                 // System.out.println("server recieved index from client:" + pieceNumInt);
@@ -395,22 +401,30 @@ public class Peer {
                                     }
 
                                 }
-                                incomingMsg = new byte[5 + pieceSize]; // this is the largest a message could be
+
+                                incomingMsg = new byte[5 + pieceSize];
 
                                 if (quit) {
+                                    System.out.println("quit it true");
                                     server_dout.flush();
                                     // bis.close();
                                     // sc.close();
-                                    System.out.println("File Transfer Complete.");
+                                    // System.out.println("File Transfer Complete.");
                                     serverLoop = false;
                                 }
                             }
-
+                            System.out.println("waiting for next message");
+                            // try {
+                            //     // Thread.sleep(1000);
+                            // } catch (InterruptedException e) {
+                            //     // TODO Auto-generated catch block
+                            //     e.printStackTrace();
+                            // }
                         }
 
                     }
                     handshakeDone = true; // received handshake
-
+                    incomingMsg = new byte[5 + pieceSize]; 
                 }
             } catch (IOException ioException) {
                 System.out.println("Disconnect with Client " + clientPeerID);
@@ -462,6 +476,7 @@ public class Peer {
 
             byte[] sendMessage = byteOS.toByteArray();
             sendMessage(sendMessage); // sending the piece message
+            byteOS.reset();
 
         }
 
@@ -559,6 +574,7 @@ public class Peer {
                         byte[] handshake = byteOS.toByteArray();
 
                         sendMessage(handshake); // client sends handshake message to server
+                        byteOS.reset();
 
                         // client waiting for handshake mesage from server
                         byte[] incomingHandshake = new byte[32]; // empty byte array for incoming handshake
@@ -575,7 +591,7 @@ public class Peer {
                         byteOS.reset();
 
                     } else if (!bitfieldDone) {
-
+                        System.out.println("sending bitfield");
                         // client sends bitfield first
                         byte bitfield[] = generateBitfield();
 
@@ -647,7 +663,8 @@ public class Peer {
                                 neighborsPieceMap.put(serverPeerID, peerPieceMap); // update global map
       
                                 if (!peerPieceMap.containsValue(false)) {
-                                    System.out.println(peerIDInt + " says that " + serverPeerID + "is done!");
+                                    // System.out.println(peerIDInt + " says that " + serverPeerID + "is done!");
+                                    peersDone.replace(serverPeerID, true);
                                 }
 
                                 // send the first request after sending the receiving the bitfield message
@@ -670,6 +687,7 @@ public class Peer {
                                 byteOS.write(requestIndex);
 
                                 byte[] msg = byteOS.toByteArray();
+                                System.out.println("sending first request");
                                 sendMessage(msg); // requesting the piece
                                 byteOS.reset();
 
@@ -684,8 +702,20 @@ public class Peer {
                                 logHave(peerIDInt, serverPeerID, pieceNum);
 
                                 // add the peice to the neighbor's map, and then check if its done
+                                peerPieceMap.replace(pieceNum, true); //the neighbor has this piece 
 
-                            } else if (Arrays.equals(messageType, messageTypeMap.get("piece"))) {
+                                // if we do not have this piece, add to the list of pieces to request
+                                if (!pieceMap.containsKey(pieceNum)){
+                                    peerPieceList.add(pieceNum);
+                                }
+
+                                // if the server who sent the message is done, log that they are done 
+                                if (!peerPieceMap.containsValue(false)) {
+                                    System.out.println(peerIDInt + " says that " + serverPeerID + "is done!");
+                                    peersDone.replace(serverPeerID, true); //server is done, has all pieces 
+                                }
+
+                            } else if (Arrays.equals(messageType, messageTypeMap.get("piece"))) { // PIECE
 
                                 // System.out.println ("piece functionality");
 
@@ -694,17 +724,17 @@ public class Peer {
                                 byte[] fileIndex = Arrays.copyOfRange(incomingMessage, 5, 9);
                                 int incomingPieceNumber = ByteBuffer.wrap(fileIndex).getInt(); // number corresponds to
                               
-                                logDownload(peerIDInt, serverPeerID, incomingPieceNumber);
-
+                                
                                 byte[] newPiece = Arrays.copyOfRange(incomingMessage, 9, messageSizeInt + 1);
 
                                 if (!pieceMap.containsKey(incomingPieceNumber)) { // don't want doubles
                                     pieceMap.put(incomingPieceNumber, newPiece);
                                     peerPieceList.remove(peerPieceList.indexOf(incomingPieceNumber));
                                 }
-                                // tellAllNeighbors(incomingPieceNumber); //will be used for have message
+                                logDownload(peerIDInt, serverPeerID, incomingPieceNumber);
+                                // tellAllNeighbors(incomingPieceNumber, serverPeerID); //will be used for have message
 
-                                //THIS PIECE FUNCTIONALITY IS CURRENTLY CAUSING PROBLEMS WITH PEERS 1003 ONWARD  
+                                //THIS PIECE FUNCTIONALITY IS CURRENTLY CAUSING PROBLEMS
 
                                 // send a new request
 
@@ -724,6 +754,7 @@ public class Peer {
                                     byteOS.write(requestIndex);
 
                                     byte[] msg = byteOS.toByteArray();
+                                    System.out.println("sending another request");
                                     sendMessage(msg); // requesting the piece
                                     byteOS.reset();
                                 } else {
@@ -733,6 +764,7 @@ public class Peer {
                                 // peer has all the pieces
                                 if (pieceMap.size() == numPieces) { 
                                     // clientLoop = false;
+                                    System.out.println("755 true");
                                     quit = true;
                                 }
 
@@ -742,6 +774,7 @@ public class Peer {
                             // client loop stays open to maintain connection until end of program 
                             if (quit) {
 
+                                System.out.println("quit");
                                 // when done, we need to write the file to the client's folder
                                 logDone(peerIDInt);
                                 byteOS.reset();
@@ -766,11 +799,12 @@ public class Peer {
                                 byteOS.reset();
 
                                 // Now, this client becomes an uploader only
-
                                 clientLoop = false;
                             }
 
                             incomingMessage = new byte[100 + pieceSize];
+                            System.out.println("waiting for next message");
+                            // Thread.sleep(1000);
                         }
                     }
                 }
@@ -794,7 +828,7 @@ public class Peer {
 
         void sendMessage(byte[] msg) {
             try {
-                // client_dout.flush();
+                client_dout.flush();
                 client_dout.write(msg);
 
             } catch (IOException ioException) {
@@ -883,10 +917,15 @@ public class Peer {
         return bitfield;
     }
 
-    static void tellAllNeighbors(int haveIndex) throws IOException {
+    static void tellAllNeighbors(int haveIndex, int serverID) throws IOException {
+
         for (int n : neighborMap.keySet()) {
+            if (n != serverID){ //dont tell the person who just sent it to you 
+
             Socket tempSocket = neighborMap.get(n);
-            DataOutputStream all_dout = new DataOutputStream(tempSocket.getOutputStream());
+            System.out.println("sending have to neighbor " + n);
+            // DataOutputStream all_dout = new DataOutputStream(tempSocket.getOutputStream());
+            OutputStream temp = tempSocket.getOutputStream();
 
             byte[] messageLength = ByteBuffer.allocate(4).putInt(4).array(); // allocate 4 bytes for index
             byte[] messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("have")).array();
@@ -895,10 +934,15 @@ public class Peer {
             byteOS.write(messageLength);
             byteOS.write(messageType);
             byteOS.write(requestIndex);
+            
 
             byte[] msg = byteOS.toByteArray();
-            all_dout.write(msg);
+            temp.flush();
+            temp.write(msg);
+            byteOS.reset();
         }
+
+            }            
     }
 
     static void logConnectionTo(int peerID1, int peerID2) {
