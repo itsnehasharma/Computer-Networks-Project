@@ -1,4 +1,0 @@
-Dec 09, 2020 2:56:47 PM Peer logConnectionFrom
-INFO: Peer [1001] is connected from Peer [1002]
-Dec 09, 2020 2:56:47 PM Peer logBitfieldFrom
-INFO: Peer [1001] has received a bitfield message from [1002]

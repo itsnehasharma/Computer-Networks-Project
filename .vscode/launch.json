@@ -6,6 +6,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "CodeLens (Launch) - PeerTest",
+            "request": "launch",
+            "mainClass": "PeerTest",
+            "projectName": "Computer-Networks-Project_8ff31eea"
+        },
+        {
+            "type": "java",
             "name": "Debug (Launch) - Current File",
             "request": "launch",
             "mainClass": "${file}",

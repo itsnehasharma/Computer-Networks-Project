@@ -8,3 +8,6 @@ cisekey
 cisekey.pub
 
 ignore/
+
+.idea/
+.vscode/
