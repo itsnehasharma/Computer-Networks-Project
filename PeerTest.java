@@ -461,13 +461,9 @@ public class PeerTest {
                         logHave(myPeerID, this.serverPeerID, haveIndexInt);
 
                         //Checking for shutdown
-                        boolean shut = shutdown(peersPieceMap);
-                        if (!shut) {
-                            System.out.println(shut);
-                            generateFinalFile();
-                            //shutDown();
-                        }
+
                     }
+
 
                     if (pieceMap.size() == numPieces){
                         logDone(myPeerID);
@@ -478,6 +474,22 @@ public class PeerTest {
                     messageLength = new byte[4];
                     messageType = new byte[1];
                 }
+
+                //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                //=======================================================================================================
+                System.out.println("1");
+
+                boolean shut = shutdown(peersPieceMap);
+                System.out.println("2");
+                if (!shut) {
+                    System.out.println("3");
+                    System.out.println(shut);
+                    //generateFinalFile();
+                    //shutDown();
+                }
+                System.out.println("4");
+                //=======================================================================================================
+                //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
             } catch (IOException e1) {
@@ -506,11 +518,15 @@ public class PeerTest {
 //            System.out.printf("Shutdown Command Executed");
 //        }
         static boolean shutdown(HashMap<Integer, HashMap<Integer, Boolean>> pp) {
+            System.out.println("Exterior");
             for (HashMap.Entry<Integer, HashMap<Integer, Boolean>> letterEntry : pp.entrySet()) {
                 Integer letter = letterEntry.getKey();
-
+                System.out.println("For Loop Outer");
                 for (HashMap.Entry<Integer, Boolean> nameEntry : letterEntry.getValue().entrySet()) {
+                    System.out.println("For Loop Inner");
+                    System.out.println("Sab Moh Maya Hai " + nameEntry.getValue());
                     if(nameEntry.getValue() == false){
+                        System.out.println("Inside If");
                         return true;
                     }
                 }

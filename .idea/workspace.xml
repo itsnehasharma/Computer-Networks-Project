@@ -3,7 +3,8 @@
   <component name="ChangeListManager">
     <list default="true" id="b0b0df74-f6a6-414d-906d-4c96e2a2251b" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/1001/1001_BitTorrent.log.1" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/1003/1003_BitTorrent.log.lck" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/1004/1004_BitTorrent.log.lck" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/PeerTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/PeerTest.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
