@@ -22,19 +22,26 @@ public class PeerTest {
     static int numPieces = -1;
 
     // connection information about all peers
+    // this is used to connect peers
     static HashMap<Integer, String[]> peerInfoMap = new HashMap<Integer, String[]>();
 
-    // keep track of which file pieces self has
+    // keep track of which file pieces SELF has
+    // this is accesible through all client and server threads
     static HashMap<Integer, byte[]> pieceMap = new HashMap<>();
 
-    // map of each peer and their piece map
+    // map of EACH peer and their piece map
+    // the map is as follows:
+    // key: peerNumber value: map of (key: piece num, value: boolean of whether the peer has the piece)
+    // this is filled for each peer when setting up bitfield
+    // when there are NO values of "false" in this map, all peers have all pieces. 
+    // we will need to periodically check this map, probably after receiving "have" messages.
     static HashMap<Integer, HashMap<Integer, Boolean>> peersPieceMap = new HashMap<>();
 
     // message types to numbers for easy access
     static HashMap<String, byte[]> messageTypeMap;
 
     // list of neighbors by connection sockets, peer ID's don't need to be stored in this case
-    // static HashMap<Integer, Socket> neighbors = new HashMap<>();
+    // this is used to send "have" messages to all neighbors 
     static ArrayList<Socket> neighbors = new ArrayList<>();
     static ArrayList<DataOutputStream> neighbor_douts = new ArrayList<>();
 
@@ -64,7 +71,6 @@ public class PeerTest {
         getSelfInfo();
 
         // client server connection process
-
         boolean clientConnect = false;
         boolean setUpFile = false;
 
@@ -88,13 +94,6 @@ public class PeerTest {
                         for (int id : peerInfoMap.keySet()) {
 
                             String[] peerInfo = peerInfoMap.get(id);
-                            // int peerIsOwner = Integer.valueOf(peerInfo[2]);
-
-                            // if (peerIsOwner == 1) {
-                            // peersDone.put(peerIDInt, true);
-                            // } else {
-                            // peersDone.put(peerIDInt, false);
-                            // }
 
                             // connect to each peer that already has a server running
                             // it to work this way, peers need to be established in peerNum order
@@ -107,11 +106,13 @@ public class PeerTest {
                                 System.out.println("connecting to peerid " + id + " at host " + connectToHost + " port "
                                         + connectToPort);
                                 Socket requestSocket = new Socket(connectToHost, connectToPort);
+
+                                // adding to map neighbors of ALL neighbors (both peers we are clients of and peers we are servers of)
                                 neighbors.add(requestSocket);
+
+                                // add to map douts of ALL douts 
                                 neighbor_douts.add(new DataOutputStream(requestSocket.getOutputStream()));
                                 new Thread(new Client(requestSocket, id)).start();
-                                // System.out.println("connected");
-                                // neighborMap.put(id, requestSocket);
                             }
 
                         }
@@ -138,12 +139,7 @@ public class PeerTest {
 
         ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
 
-
         private int clientPeerID;
-
-        // maybe change this implementation
-        // private HashMap<Integer, Boolean> peerPieceMap = new HashMap<Integer,
-        // Boolean>();
 
         public Handler(Socket connection) {
             this.connection = connection;
@@ -175,19 +171,19 @@ public class PeerTest {
                     byte[] bitfieldMessage = new byte[bitfieldLength];
                     this.server_din.read(bitfieldMessage);
 
-                    // parse the bitfield
+                    // parse the bitfield from the client, and then send the client the bitfield 
                     parseAndSendBitfield(bitfieldMessage, this.clientPeerID);
 
-                    // send a bitfield
+                 
                 }
 
                 messageLength = new byte[4];
                 messageType = new byte[1];
 
                 // wait for messages 
-                while (this.server_din.read(messageLength) > 0){
+                while (this.server_din.read(messageLength) > 0){ // read in 4 bytes for the message length 
                     
-                    this.server_din.read(messageType);
+                    this.server_din.read(messageType); //read in 1 byte for the message type 
 
                     if (Arrays.equals(messageType, messageTypeMap.get("request"))) {
                         // System.out.println(myPeerID + " received request message" + this.clientPeerID);
@@ -196,13 +192,15 @@ public class PeerTest {
                         byte[] requestIndex = new byte[ByteBuffer.wrap(messageLength).getInt()];
                         this.server_din.read(requestIndex);
                         sendPiece(requestIndex);
-                    } else if (Arrays.equals(messageType, messageTypeMap.get("have"))) {
+
+                    } else if (Arrays.equals(messageType, messageTypeMap.get("have"))) { // on receving this have, we should update peerPieceMap
 
                         byte[] haveIndex = new byte[4];
 
                         this.server_din.read(haveIndex);
                         int haveIndexInt = ByteBuffer.wrap(haveIndex).getInt();
 
+                        // updating the overall piece map for the client peer we are connected to 
                         if (peersPieceMap.get(this.clientPeerID).containsKey(haveIndexInt)) {
                             peersPieceMap.get(this.clientPeerID).replace(haveIndexInt, true);
                         } else {
@@ -210,6 +208,10 @@ public class PeerTest {
                         }
 
                         logHave(myPeerID, this.clientPeerID, ByteBuffer.wrap(haveIndex).getInt());
+
+                        // TO DO HERE: 
+                        // check if all peers are done after receiving this have message
+                        // if we are done, move to a file out method/portion/whatever 
                     }
 
                     messageLength = new byte[4];
@@ -224,6 +226,7 @@ public class PeerTest {
 
         }
 
+        // "server" peer recieves handshake from "client" peer & sends one back 
         void parseAndSendHandshake(byte[] incomingHandshake) throws IOException, InterruptedException {
             this.clientPeerID = ByteBuffer.wrap(Arrays.copyOfRange(incomingHandshake, 28, 32)).getInt();
             logConnectionFrom(myPeerID, this.clientPeerID);
@@ -246,6 +249,7 @@ public class PeerTest {
             byteOS.reset();
         }
 
+        // "server" peer recieves bitfield from "client" peer & sends one back 
         void parseAndSendBitfield(byte[] bitfieldMessage, int clientID) throws IOException {
 
             int counter = 1; // used to count pieces
@@ -290,6 +294,7 @@ public class PeerTest {
             // System.out.println(myPeerID + " sent bitfield message to " + this.clientPeerID);
         }
 
+        // "server" peer sends piece of byte file to "client" peer
         void sendPiece(byte[] requestIndex) throws IOException {
 
             int pieceNum = ByteBuffer.wrap(requestIndex).getInt();
@@ -337,6 +342,7 @@ public class PeerTest {
 
         private int serverPeerID;
 
+        // this list is used to know which pieces to request from the "server" peer 
         private ArrayList<Integer> serverPieceList = new ArrayList<>();
 
         public Client(Socket connection, int sID) {
@@ -346,6 +352,7 @@ public class PeerTest {
 
         public void run() {
             try {
+
                 this.client_dout = new DataOutputStream(connection.getOutputStream());
                 this.client_din = new DataInputStream(connection.getInputStream());
 
@@ -360,14 +367,18 @@ public class PeerTest {
 
                 parseHandshake(incomingHandshake, this.serverPeerID);
                 // System.out.println("Server peer id: " + serverPeerID);
+
+                // client sends the first bitfield message 
                 sendBitfield();
 
+                // client waits for bitfield message 
                 byte[] messageLength = new byte[4];
                 byte[] messageType = new byte[1];
                 this.client_din.read(messageLength); // first get the message length to set up the bitfield
                 this.client_din.read(messageType);
                 int bitfieldLength = ByteBuffer.wrap(messageLength).getInt();
 
+                // "client" peer receives bitfield message from "server" peer
                 if (Arrays.equals(messageType, messageTypeMap.get("bitfield"))) {
                     // System.out.println(myPeerID + " received bitfield message from " + this.serverPeerID);
                     byte[] bitfieldMessage = new byte[bitfieldLength];
@@ -380,8 +391,9 @@ public class PeerTest {
                 int requestPieceNum = selectRandomPieceNum();
                 // System.out.println( myPeerID + " going to request piece " + requestPieceNum + " from " + this.serverPeerID);
 
+                // only send a request if there are available pieces to request 
                 if (requestPieceNum > 0) {
-                    sendRequest(requestPieceNum);
+                    sendRequest(requestPieceNum); 
                 }
 
                 // start the client loop
@@ -389,9 +401,10 @@ public class PeerTest {
                 messageType = new byte[1];
 
                 while (this.client_din.read(messageLength) > 0) {
-                    // send the first
+
                     this.client_din.read(messageType);
 
+                    // "client" peer receives piece from "server" peer 
                     if (Arrays.equals(messageType, messageTypeMap.get("piece"))) {
                         // System.out.println(myPeerID + " recieved a piece from " + this.serverPeerID);
 
@@ -406,7 +419,7 @@ public class PeerTest {
                         int newRequestPieceNum = selectRandomPieceNum();
 
                         if (newRequestPieceNum > 0){    
-                            Thread.sleep(250);                        
+                            Thread.sleep(100); // for the sake of not overloading the connection                           
                             sendRequest(newRequestPieceNum);
                         } else {
                             System.out.println(peersPieceMap.get(myPeerID).toString());
@@ -420,6 +433,7 @@ public class PeerTest {
                         int haveIndexInt = ByteBuffer.wrap(haveIndex).getInt();
 
 
+                        // after receiving a "have" message, update the peers piece map
                         if (peersPieceMap.get(this.serverPeerID).containsKey(haveIndexInt)) {
                             peersPieceMap.get(this.serverPeerID).replace(haveIndexInt, true);
                         } else {
@@ -439,7 +453,10 @@ public class PeerTest {
                             System.out.println(peersPieceMap.get(myPeerID).toString());
                             System.out.println(serverPieceList.toString());
                         }
-                        // send interested, request the piece 
+
+                        // TODO: If this peers needs the piece that was just "haved" we need to send an interested message 
+
+                        // TODO: check if all connected peers have all pieces. if so, shut down 
 
                         logHave(myPeerID, this.serverPeerID, haveIndexInt);
                     }
@@ -462,6 +479,7 @@ public class PeerTest {
 
         }
 
+        // sending handshake message to "server" peer
         void sendHandshake(int serverPeerID) throws IOException, InterruptedException {
 
             System.out.println("sending handshake to " + serverPeerID);
@@ -484,13 +502,14 @@ public class PeerTest {
 
         }
 
+        // parse incoming handshake from "server"
         void parseHandshake(byte[] incomingHandshake, int serverPeerID) {
-            // serverPeerID = ByteBuffer.wrap(Arrays.copyOfRange(incomingHandshake, 28,
-            // 32)).getInt();
+           
             System.out.println("recieved handshake from " + serverPeerID);
             logConnectionTo(myPeerID, serverPeerID);
         }
 
+        // send bitfield to server 
         void sendBitfield() throws IOException {
             // System.out.println(myPeerID + " sending bitfield");
             byte bitfield[] = generateBitfield();
@@ -508,6 +527,7 @@ public class PeerTest {
             System.out.println(myPeerID + " sent bitfield message to " + this.serverPeerID);
         }
 
+        // parse incoming bitfield from server 
         void parseBitfield(byte[] bitfieldMessage, int serverPeerID) {
 
             int counter = 1; // used to count pieces
@@ -546,6 +566,7 @@ public class PeerTest {
             // System.out.println(peersPieceMap.get(this.serverPeerID).toString());
         }
 
+        // send a piece request to the server 
         void sendRequest(int requestPieceNum) throws IOException {
 
             byte[] messageLength = ByteBuffer.allocate(4).putInt(4).array();
@@ -565,6 +586,7 @@ public class PeerTest {
             this.byteOS.reset();
         }
 
+        // selecting a random piece number based on "serverPieceList"
         int selectRandomPieceNum() {
             while (this.serverPieceList.size() > 0) {
                 int pieceNum = this.serverPieceList.get(rand.nextInt(this.serverPieceList.size()));
@@ -578,6 +600,7 @@ public class PeerTest {
             return -1;
         }
 
+        // what to do with new piece 
         void parseNewPiece(byte[] pieceIndex, byte[] newPiece) throws IOException {
 
             int pieceNum = ByteBuffer.wrap(pieceIndex).getInt();
@@ -586,15 +609,15 @@ public class PeerTest {
             if (!pieceMap.containsKey(pieceNum)){
                 pieceMap.put(pieceNum, newPieceCopy);
                 this.serverPieceList.removeAll(Collections.singleton(pieceNum));
-                sendHave(pieceNum);
-            }
+                sendHave(pieceNum); //letting all peers know about the new piece 
+            } 
 
             logDownload(myPeerID, this.serverPeerID, pieceNum);
-            // System.out.println("client received ");
-            // String test = new String(newPiece, StandardCharsets.UTF_8);
-            // System.out.println(test);
+           
         }
 
+        // letting all the neighbors know that we have receieved a new piece 
+        // this information is used to check the peerpiecemap 
         void sendHave(int pieceNum) throws IOException {
 
             byte[] messageLength = ByteBuffer.allocate(4).putInt(4).array(); // allocate 4 bytes for index
@@ -687,6 +710,7 @@ public class PeerTest {
         System.out.println("I am peer " + myPeerID + " listening on port " + portNum + " and owner: " + isOwner);
     }
 
+    // only used on the owner of the file 
     static void fileToPieceMap() throws IOException {
         File file = new File(fileName);
 
@@ -714,7 +738,7 @@ public class PeerTest {
         }
     }
 
-    // check that bitfields are generating correctly
+    // goes through piece map to check which pieces it has 
     static byte[] generateBitfield() {
 
         String bitstring = "";
@@ -753,10 +777,10 @@ public class PeerTest {
         }
 
         byte[] bitfield = peerByteOS.toByteArray();
-        // System.out.println("returning generated bitfield");
         return bitfield;
     }
 
+    // this is the method that needs to be called after we shut down the program 
     static void generateFinalFile() throws IOException {
 
         peerByteOS.reset();
