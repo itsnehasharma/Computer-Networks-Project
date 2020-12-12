@@ -878,4 +878,18 @@ public class PeerTest {
         logger.info("Peer [" + peerID + "] has downloaded the complete file.");
     }
 
+
+
+    static boolean shutdown(HashMap<Integer, HashMap<Integer, Boolean>> pp) {
+        for (HashMap.Entry<Integer, HashMap<Integer, Boolean>> letterEntry : pp.entrySet()) {
+            Ineger letter = letterEntry.getKey();
+    
+            for (HashMap.Entry<Integer, Boolean> nameEntry : letterEntry.getValue().entrySet()) {
+                if(nameEntry.getValue() == false){
+                    return true;
+                }
+            }
+        }
+    }
+
 }
