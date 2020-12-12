@@ -461,10 +461,11 @@ public class PeerTest {
                         logHave(myPeerID, this.serverPeerID, haveIndexInt);
 
                         //Checking for shutdown
-                        boolean shutdown = checkShutDown();
-                        if (!shutdown) {
+                        boolean shut = shutdown(peersPieceMap);
+                        if (!shut) {
+                            System.out.println(shut);
                             generateFinalFile();
-                            shutDown();
+                            //shutDown();
                         }
                     }
 
@@ -488,21 +489,33 @@ public class PeerTest {
         }
 
         // check for shutdown procedure to start
-        public boolean checkShutDown() {
-            System.out.printf("Checking shutdown clause.");
-            boolean flag = true;
-            for (Integer key : peersPieceMap.keySet())
-            {
-                HashMap<Integer innerKey,Boolean String> inner = peersPieceMap.get(key);
-                if (inner.containsValue(false)){
-                return true;
-            }
-            }
-        }
+//        public boolean checkShutDown() {
+//            System.out.printf("Checking shutdown clause.");
+//            boolean flag = true;
+//            for (Integer key : peersPieceMap.keySet())
+//            {
+//                HashMap<Integer innerKey,Boolean String> inner = peersPieceMap.get(key);
+//                if (inner.containsValue(false)){
+//                return true;
+//            }
+//            }
+//        }
 
-        public void shutDown() {
-            //Any actions that may need to be performed after the file is generated, for cleanup purposes
-            System.out.printf("Shutdown Command Executed");
+//        public void shutDown() {
+//            //Any actions that may need to be performed after the file is generated, for cleanup purposes
+//            System.out.printf("Shutdown Command Executed");
+//        }
+        static boolean shutdown(HashMap<Integer, HashMap<Integer, Boolean>> pp) {
+            for (HashMap.Entry<Integer, HashMap<Integer, Boolean>> letterEntry : pp.entrySet()) {
+                Integer letter = letterEntry.getKey();
+
+                for (HashMap.Entry<Integer, Boolean> nameEntry : letterEntry.getValue().entrySet()) {
+                    if(nameEntry.getValue() == false){
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         // sending handshake message to "server" peer
@@ -904,19 +917,5 @@ public class PeerTest {
         logger.info("Peer [" + peerID + "] has downloaded the complete file.");
     }
 
-
-
-    static boolean shutdown(HashMap<Integer, HashMap<Integer, Boolean>> pp) {
-        for (HashMap.Entry<Integer, HashMap<Integer, Boolean>> letterEntry : pp.entrySet()) {
-            Ineger letter = letterEntry.getKey();
-    
-            for (HashMap.Entry<Integer, Boolean> nameEntry : letterEntry.getValue().entrySet()) {
-                if(nameEntry.getValue() == false){
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 
 }
