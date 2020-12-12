@@ -916,6 +916,7 @@ public class PeerTest {
                 }
             }
         }
+        return false;
     }
 
 }
