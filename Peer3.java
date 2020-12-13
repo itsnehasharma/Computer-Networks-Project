@@ -2,12 +2,15 @@ import java.util.*;
 
 import java.util.logging.*;
 
+import javax.xml.crypto.Data;
+
 import java.io.*;
+import java.lang.reflect.Array;
 import java.net.*;
 import java.nio.*;
 import java.nio.charset.StandardCharsets;
 
-public class Peer2 {
+public class Peer3 {
 
     static Logger logger = Logger.getLogger("BitTorrentLog");
     static FileHandler fh; // for log
@@ -54,6 +57,10 @@ public class Peer2 {
     // download rates map
     static HashMap<Socket, Integer> downloadRates = new HashMap<>();
 
+    // static HashMap<Socket, Boolean> neighborsChoked = new HashMap<>();
+
+    static HashMap<Socket, Boolean> neighborsInterested = new HashMap<>();
+
     static ArrayList<Socket> chokedNeighbors = new ArrayList<>();
     static ArrayList<Socket> unchokedNeighbors = new ArrayList<>();
 
@@ -63,6 +70,8 @@ public class Peer2 {
     static int myPeerID = -1;
 
     static ByteArrayOutputStream peerByteOS = new ByteArrayOutputStream();
+
+    static boolean done = false;
 
     public static void main(String[] args) throws IOException {
 
@@ -91,13 +100,13 @@ public class Peer2 {
 
         Timer timer = new Timer();
 
-        timer.schedule(new Choke(), 0, unchokingInterval * 1000);
         try {
             while (true) {
                 if (isOwner == 1) { // if this peer is an owner of the file
                     if (!setUpFile) {
                         fileToPieceMap();
                         setUpFile = true;
+                        done = true;
                     }
 
                     // Socket clientConnection = listener.accept();
@@ -112,7 +121,9 @@ public class Peer2 {
 
                         // connect to each peer that already has a server running
                         // it to work this way, peers need to be established in peerNum order
-                        peersPieceMap.put(id, new HashMap<>()); // set up the piece map for each peer
+                        // peersPieceMap.put(id, new HashMap<>()); // set up the piece map for each peer
+                        allFalsePieceMap(id);
+
                         if (id < myPeerID) {
 
                             String connectToHost = peerInfo[0];
@@ -136,10 +147,15 @@ public class Peer2 {
 
                     }
                     clientConnect = true;
+                    timer.schedule(new Choke(), unchokingInterval * 1000, unchokingInterval * 1000);
+                    timer.schedule(new OptomisticUnchoke(), optomisticUnchokingInterval * 1000, optomisticUnchokingInterval * 1000);
+
                 }
 
                 // finished connecting to all open servers, now waiting for peers to connect
                 Socket clientConnection = listener.accept();
+                neighbors.add(clientConnection);
+
                 neighbor_douts.add(new DataOutputStream(clientConnection.getOutputStream()));
                 downloadRates.put(clientConnection, 0);
                 new Handler(clientConnection).start();
@@ -164,7 +180,7 @@ public class Peer2 {
 
         private boolean selfChoked = false;
         // private boolean peerChoked = false;
-        private boolean done = false;
+        // private boolean done = false;
 
         ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
 
@@ -249,6 +265,8 @@ public class Peer2 {
                             this.din.read(requestIndex);
                             sendPiece(requestIndex);
 
+                        } else {
+                            System.out.println("cannot send, this connction is choked");
                         }
 
                     } else if (Arrays.equals(messageType, messageTypeMap.get("piece"))) {
@@ -262,20 +280,24 @@ public class Peer2 {
                         parseNewPiece(pieceIndex, newPiece);
 
                         // log that a piece was received, increase the download rate
-                        downloadRates.replace(connection, downloadRates.get(connection) + 1);
+                        downloadRates.replace(this.connection, downloadRates.get(connection) + 1);
 
                         // Thread.sleep(500);
-                        int newRequestPieceNum = selectRandomPieceNum();
+                        if (!this.selfChoked) {
+                            int newRequestPieceNum = selectRandomPieceNum();
 
-                        if (newRequestPieceNum > 0) {
-                            // Thread.sleep(300); // for the sake of not overloading the connection
-                            sendRequest(newRequestPieceNum);
-                        } else {
+                            if (newRequestPieceNum > 0) {
+                                // Thread.sleep(300); // for the sake of not overloading the connection
+                                sendRequest(newRequestPieceNum);
+                            } else {
 
-                            // System.out.println(peersPieceMap.get(myPeerID).toString());
-                            // System.out.println(peerPieceList.toString());
-                            System.out.println("received -1 for " + this.connectedPeerID);
+                                // System.out.println(peersPieceMap.get(myPeerID).toString());
+                                // System.out.println(peerPieceList.toString());
+                                System.out.println("received -1 for " + this.connectedPeerID);
+                            }
+
                         }
+
                     } else if (Arrays.equals(messageType, messageTypeMap.get("have"))) { // on receving this have, we
                                                                                          // should update peerPieceMap
 
@@ -283,6 +305,7 @@ public class Peer2 {
 
                         this.din.read(haveIndex);
                         int haveIndexInt = ByteBuffer.wrap(haveIndex).getInt();
+                        logHave(myPeerID, this.connectedPeerID, haveIndexInt);
 
                         // updating the overall piece map for the client peer we are connected to
                         if (peersPieceMap.get(this.connectedPeerID).containsKey(haveIndexInt)) {
@@ -294,10 +317,11 @@ public class Peer2 {
                         if (!pieceMap.containsKey(haveIndexInt)) {
                             this.peerPieceList.add(haveIndexInt); // if we don't have this piece, we can now ask this
                                                                   // server
-                        }
-
-                        if (!peerPieceList.isEmpty()) {
-                            // send an interested message
+                            // send interested message
+                            sendInterested();
+                        } else {
+                            // send not interested message
+                            sendNotInterested();
                         }
 
                         if (isOwner == 0 && !this.selfChoked) {
@@ -313,8 +337,6 @@ public class Peer2 {
                                 System.out.println("received -1 for " + this.connectedPeerID);
                             }
 
-                            logHave(myPeerID, this.connectedPeerID, ByteBuffer.wrap(haveIndex).getInt());
-
                             // TO DO HERE:
                             // check if all peers are done after receiving this have message
                             // if we are done, move to a file out method/portion/whatever
@@ -322,17 +344,32 @@ public class Peer2 {
                         }
 
                     } else if (Arrays.equals(messageType, messageTypeMap.get("choke"))) {
-                        logChoked(myPeerID, this.connectedPeerID);
-                        this.selfChoked = true;
+                        if (!selfChoked) {
+                            logChoked(myPeerID, this.connectedPeerID);
+                            this.selfChoked = true;
+                        }
                     } else if (Arrays.equals(messageType, messageTypeMap.get("unchoke"))) {
-                        logUnchoked(myPeerID, this.connectedPeerID);
-                        this.selfChoked = false;
+                        if (selfChoked) {
+                            logUnchoked(myPeerID, this.connectedPeerID);
+                            this.selfChoked = false;
+                        }
+                        int newRequestPieceNum = selectRandomPieceNum();
+
+                        if (newRequestPieceNum > 0) {
+                            sendRequest(newRequestPieceNum);
+                        }
+
                     } else if (Arrays.equals(messageType, messageTypeMap.get("interested"))) {
-                        System.out.println("interetsed");
+                        logInterested(myPeerID, this.connectedPeerID);
+                        System.out.println(myPeerID + "received interested from " + this.connectedPeerID);
+                        logNotInterested(myPeerID, this.connectedPeerID);
+                        neighborsInterested.put(this.connection, true);
                     } else if (Arrays.equals(messageType, messageTypeMap.get("not_interested"))) {
-                        System.out.println("not interetsed");
+                        // System.out.println("not interetsed");
+                        neighborsInterested.put(this.connection, false);
+
                     } else {
-                        System.out.println("received unknown message type");
+                        // System.out.println("received unknown message type");
                     }
 
                     if (pieceMap.size() == numPieces && !done) {
@@ -345,12 +382,18 @@ public class Peer2 {
                     this.byteOS.reset();
                     messageLength = new byte[4];
                     messageType = new byte[1];
-                    System.out.println("waiting for next message from " + this.connectedPeerID);
+                    // System.out.println("waiting for next message from " + this.connectedPeerID);
                     // System.out.println("my piece map: " + pieceMap.size());
                     // System.out.println("numpieces: " + numPieces);
+
+                    boolean shutDown = shutdown();
+
+                    if (shutDown) {
+                        System.out.println("time to shut down!");
+                    }
+
                 }
 
-                // start the client loop
                 messageLength = new byte[4];
                 messageType = new byte[1];
 
@@ -411,13 +454,18 @@ public class Peer2 {
         }
 
         // parse incoming bitfield from server
-        void parseBitfield(byte[] bitfieldMessage) {
+        void parseBitfield(byte[] bitfieldMessage) throws IOException, InterruptedException {
 
             int counter = 1; // used to count pieces
+            boolean sentInterested = false;
 
+            // shouldnt have this
             if (!peersPieceMap.containsKey(this.connectedPeerID)) {
                 peersPieceMap.put(this.connectedPeerID, new HashMap<>());
             }
+            // if (!neighborsInterested.containsKey(this.connection)) {
+            // neighborsInterested.put(this.connection, false);
+            // }
 
             for (int i = 0; i < bitfieldMessage.length; i++) {
 
@@ -426,13 +474,18 @@ public class Peer2 {
                 for (int j = 0; j < bs.length(); j++) {
                     if (bs.charAt(j) == '0') {
                         // peerPieceMap.put(counter, false); // local connection map
-                        peersPieceMap.get(this.connectedPeerID).put(counter, false); // changing the global static map
+                        peersPieceMap.get(this.connectedPeerID).replace(counter, false); // changing the global static
+                                                                                         // map
                     } else if (bs.charAt(j) == '1') {
                         // peerPieceMap.put(counter, true); // local connection map
-                        peersPieceMap.get(this.connectedPeerID).put(counter, true);
+                        peersPieceMap.get(this.connectedPeerID).replace(counter, true);
                         if (!pieceMap.containsKey(counter)) { // if this client doesn't have this piece, then it can
                                                               // request from server
                             this.peerPieceList.add(counter); // add to list of requests to server
+                            if (!sentInterested && !done) {
+                                sendInterested();
+                                sentInterested = true;
+                            }
                         }
                     }
                     // System.out.println("counter: " + counter);
@@ -456,7 +509,7 @@ public class Peer2 {
 
         // selecting a random piece number based on "serverPieceList"
         int selectRandomPieceNum() {
-            System.out.println("selecting a random piece number");
+            // System.out.println("selecting a random piece number");
             while (this.peerPieceList.size() > 0) {
                 int pieceNum = this.peerPieceList.get(rand.nextInt(this.peerPieceList.size()));
                 if (!pieceMap.containsKey(pieceNum)) { // if we dont have this piece
@@ -484,7 +537,8 @@ public class Peer2 {
             this.byteOS.write(requestIndex);
 
             byte[] msg = this.byteOS.toByteArray();
-            System.out.println(myPeerID + " sending request " + requestPieceNum + " to " + this.connectedPeerID);
+            // System.out.println(myPeerID + " sending request " + requestPieceNum + " to "
+            // + this.connectedPeerID);
             sendMessage(msg); // requesting the piece
             this.byteOS.reset();
         }
@@ -555,15 +609,59 @@ public class Peer2 {
 
             this.byteOS.reset();
 
+            // ArrayList<Socket> sendHaveTo = new ArrayList<>(neighbors);
+            // // System.out.println("all neighbors: " + sendHaveTo.toString());
+            // // System.out.println("my connection :" + this.connection);
+            // sendHaveTo.remove(this.connection);
+            // // System.out.println("after remove: " + sendHaveTo.toString());
+
+            // // ArrayList<DataOutputStream> sendHaveTo = neighbor_douts;
+            // // sendHaveTo.remove(this.dout);
+
+            // for (Socket neighbor : sendHaveTo) {
+            // System.out.println("sending have message");
+            // DataOutputStream temp_dout = new
+            // DataOutputStream(neighbor.getOutputStream());
+            // temp_dout.write(msg);
+            // // temp_dout.close();
+            // }
             for (DataOutputStream n_dout : neighbor_douts) {
-                n_dout.flush();
-                n_dout.write(msg);
+                if (!n_dout.equals(this.dout)) { // don't send a message to the person who just sent to you
+                    n_dout.flush();
+                    n_dout.write(msg);
+                }
             }
         }
 
+        void sendInterested() throws IOException, InterruptedException {
+            byte[] messageLength = ByteBuffer.allocate(4).putInt(0).array(); // allocate 4 bytes for index
+            byte[] messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("interested")).array();
+
+            this.byteOS.reset();
+            this.byteOS.write(messageLength);
+            this.byteOS.write(messageType);
+            byte[] msg = this.byteOS.toByteArray();
+            this.dout.flush();
+            this.dout.write(msg);
+            this.byteOS.reset();
+        }
+
+        void sendNotInterested() throws IOException, InterruptedException {
+            byte[] messageLength = ByteBuffer.allocate(4).putInt(0).array(); // allocate 4 bytes for index
+            byte[] messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("not_interested")).array();
+
+            this.byteOS.reset();
+            this.byteOS.write(messageLength);
+            this.byteOS.write(messageType);
+            byte[] msg = this.byteOS.toByteArray();
+            this.dout.flush();
+            this.dout.write(msg);
+            this.byteOS.reset();
+        }
+
         void sendMessage(byte[] msg) throws IOException, InterruptedException {
-            Thread.sleep(250);
-            System.out.println(myPeerID + " sending message to " + this.connectedPeerID);
+            Thread.sleep(500);
+            // System.out.println(myPeerID + " sending message to " + this.connectedPeerID);
 
             this.dout.flush();
             this.dout.write(msg);
@@ -576,82 +674,200 @@ public class Peer2 {
         @Override
         public void run() {
 
-            HashMap<Socket, Integer> toUnchoke = new HashMap<>();
-            HashMap<Socket, Integer> toChoke = new HashMap<>();
-
-            // ArrayList<Socket> toUnchoke = new ArrayList<>();
+            // System.out.println("Download rates:");
             // TODO Auto-generated method stub
-            // System.out.println("CHOKING!");
-            for (Socket conn : downloadRates.keySet()) {
-                int rate = downloadRates.get(conn);
 
-                if (toUnchoke.size() < numNeighbors) {
-                    toUnchoke.put(conn, rate);
-                } else {
-                    int smallestInMap = Collections.min(toUnchoke.values());
-                    for (Socket temp : toUnchoke.keySet()) {
-                        if (toUnchoke.get(temp) == smallestInMap) { // check if the incoming rate is higher than the
-                                                                    // smallest in the map
-                            if (rate > toUnchoke.get(temp)) { // if another peer has a higher rate, remove temp and
-                                                              // replace
-                                toUnchoke.remove(temp);
-                                toUnchoke.put(conn, rate);
-                            } else {
-                                toChoke.put(conn, rate);
+            if (!done) {
+
+                HashMap<Socket, Boolean> interestedCopy = new HashMap<>(neighborsInterested);
+                interestedCopy.values().removeAll(Collections.singleton(false));
+                // System.out.println("actual interested: " +
+                // neighborsInterested.keySet().toString());
+                for (Socket id : neighborsInterested.keySet()) {
+                    System.out.println(id + " interested: " + false);
+                }
+
+                System.out.println("These people are interested in my pieces: " + interestedCopy.keySet().toString());
+
+                HashMap<Socket, Integer> ratesCopy = new HashMap<>(downloadRates);
+
+                ArrayList<Socket> toUnchoke = new ArrayList<>();
+
+                // should grab the highest download rates
+                for (int i = 0; i < numNeighbors; i++) {
+
+                    if (!ratesCopy.isEmpty()) {
+                        int highestRate = Collections.max(ratesCopy.values());
+                        for (Socket s : ratesCopy.keySet()) {
+                            if (ratesCopy.get(s) == highestRate && interestedCopy.containsKey(s)) {
+                                toUnchoke.add(s);
+                                ratesCopy.remove(s);
+                                break;
                             }
+                        }
+                    }
+
+                }
+
+                try {
+                    peerByteOS.reset();
+                    ArrayList<Socket> toChoke = new ArrayList<>(ratesCopy.keySet());
+
+                    byte[] messageLength = ByteBuffer.allocate(4).putInt(0).array();
+                    byte[] choke = ByteBuffer.allocate(1).put(messageTypeMap.get("choke")).array();
+                    peerByteOS.write(messageLength);
+
+                    peerByteOS.write(choke);
+                    byte[] chokeMsg = peerByteOS.toByteArray();
+
+                    byte[] unchoke = ByteBuffer.allocate(1).put(messageTypeMap.get("unchoke")).array();
+
+                    peerByteOS.reset();
+                    peerByteOS.write(messageLength);
+                    peerByteOS.write(unchoke);
+                    byte[] unchokeMsg = peerByteOS.toByteArray();
+
+                    for (Socket s : toChoke) {
+                        // send choke message
+                        if (!chokedNeighbors.contains(s)) {
+                            chokedNeighbors.add(s);
+                            s.getOutputStream().write(chokeMsg);
+                        }
+                        if (unchokedNeighbors.contains(s)) {
+                            unchokedNeighbors.remove(s);
                         }
 
                     }
+                    for (Socket s : toUnchoke) {
+                        // send unchoke message
+                        if (!unchokedNeighbors.contains(s)) {
+                            unchokedNeighbors.add(s);
+                            s.getOutputStream().write(unchokeMsg);
+                        }
+                        if (chokedNeighbors.contains(s)) {
+                            chokedNeighbors.remove(s);
+                        }
+                    }
+
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
-                // go through the download rates map, and pick the top x max based on config
+
+                // System.out.println("now only sending to " + unchokedNeighbors.toString());
+                downloadRates.replaceAll((key, value) -> 0);
+
+            } else {
+                // System.out.println("need to randomly choose a neighbor");
+
+                HashMap<Socket, Boolean> toUnchoke = new HashMap<>(neighborsInterested);
+
+                HashMap<Socket, Boolean> toChoke = new HashMap<>(neighborsInterested);
+
+                toUnchoke.values().removeAll(Collections.singleton(false)); // remove everyone not interetsed
+
+                // pick two random interested peers
+                for (int i = 0; i < numNeighbors; i++) {
+                    if (!toUnchoke.isEmpty()) {
+                        Object[] sockets = toUnchoke.keySet().toArray();
+                        Socket randomSocket = (Socket) sockets[rand.nextInt(sockets.length)];
+                        toChoke.remove(randomSocket);
+                    }
+                }
+
+                // everyone else gets left in toChoke
+                try {
+                    peerByteOS.reset();
+                    byte[] messageLength = ByteBuffer.allocate(4).putInt(0).array();
+                    byte[] choke = ByteBuffer.allocate(1).put(messageTypeMap.get("choke")).array();
+                    peerByteOS.write(messageLength);
+
+                    peerByteOS.write(choke);
+                    byte[] chokeMsg = peerByteOS.toByteArray();
+
+                    byte[] unchoke = ByteBuffer.allocate(1).put(messageTypeMap.get("unchoke")).array();
+
+                    peerByteOS.reset();
+                    peerByteOS.write(messageLength);
+                    peerByteOS.write(unchoke);
+                    byte[] unchokeMsg = peerByteOS.toByteArray();
+
+                    for (Socket s : toChoke.keySet()) {
+                        // send choke message
+                        if (!chokedNeighbors.contains(s)) {
+                            chokedNeighbors.add(s);
+                            s.getOutputStream().write(chokeMsg);
+                        }
+                        if (unchokedNeighbors.contains(s)) {
+                            unchokedNeighbors.remove(s);
+                        }
+
+                    }
+                    for (Socket s : toUnchoke.keySet()) {
+                        // send unchoke message
+                        if (!unchokedNeighbors.contains(s)) {
+                            unchokedNeighbors.add(s);
+                            s.getOutputStream().write(unchokeMsg);
+                        }
+                        if (chokedNeighbors.contains(s)) {
+                            chokedNeighbors.remove(s);
+                        }
+                    }
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+
             }
 
+        }
+    }
+
+    static class OptomisticUnchoke extends TimerTask {
+
+        @Override
+        public void run() {
+            // TODO Auto-generated method stub
+            HashMap<Socket, Boolean> interestedCopy = new HashMap<>(neighborsInterested);
+
+            System.out.println("sending op unchoke");
+            System.out.println("before: " + interestedCopy.toString());
+            interestedCopy.values().removeAll(Collections.singleton(false));
+            System.out.println("after: " + interestedCopy.toString());
+
+            ArrayList<Socket> potentialNeighbors = new ArrayList<>();
+
+            for (Socket s : chokedNeighbors){
+                if (interestedCopy.containsKey(s)){
+                    potentialNeighbors.add(s);
+                }
+            }
+
+            Object[] pN = potentialNeighbors.toArray();
+            Socket toUnchoke = (Socket) pN[rand.nextInt(pN.length)];
+
+            chokedNeighbors.remove(toUnchoke);
+            unchokedNeighbors.add(toUnchoke);
+
+            byte[] messageLength = ByteBuffer.allocate(4).putInt(0).array();
+
+            byte[] unchoke = ByteBuffer.allocate(1).put(messageTypeMap.get("unchoke")).array();
+
             peerByteOS.reset();
+
             try {
-
-                byte[] messageLength = ByteBuffer.allocate(4).putInt(0).array();
-                byte[] messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("choke")).array();
-
                 peerByteOS.write(messageLength);
-                peerByteOS.write(messageType);
+                peerByteOS.write(unchoke);
+                byte[] unchokeMsg = peerByteOS.toByteArray();
 
-                byte[] msg = peerByteOS.toByteArray();
-
-                for (Socket conn : toChoke.keySet()) {
-                    if (!chokedNeighbors.contains(conn)) {
-                        DataOutputStream temp_dout = new DataOutputStream(conn.getOutputStream());
-                        temp_dout.write(msg);
-                    }
-                }
-
-                chokedNeighbors = new ArrayList<>(toChoke.keySet());
-
-                messageLength = ByteBuffer.allocate(4).putInt(0).array(); // allocate 4 bytes for index
-                messageType = ByteBuffer.allocate(1).put(messageTypeMap.get("unchoke")).array();
-
+                toUnchoke.getOutputStream().write(unchokeMsg);
                 peerByteOS.reset();
-                peerByteOS.write(messageLength);
-                peerByteOS.write(messageType);
-
-                msg = peerByteOS.toByteArray();
-
-                for (Socket conn : toUnchoke.keySet()) {
-                    if (!unchokedNeighbors.contains(conn)) {
-                        DataOutputStream temp_dout = new DataOutputStream(conn.getOutputStream());
-                        temp_dout.write(msg);
-                    }
-                }
-
-                unchokedNeighbors = new ArrayList<>(toUnchoke.keySet());
-                downloadRates.replaceAll((key, oldVal) -> 0);
-
             } catch (IOException e) {
                 // TODO Auto-generated catch block
                 e.printStackTrace();
             }
-
+            
         }
-
+        
     }
 
     // create a logger for the peer
@@ -793,6 +1009,24 @@ public class Peer2 {
         }
     }
 
+    static void allFalsePieceMap(int peerNum){
+        // HashMap<Integer, Boolean> allFalse = new HashMap<>();
+        peersPieceMap.put(peerNum, new HashMap<>());
+
+        for (int i = 1; i <= numPieces; i++){
+            peersPieceMap.get(peerNum).put(i, false);
+        }
+    }
+
+    static boolean shutdown(){
+        for (int peer: peersPieceMap.keySet()){
+            if (peersPieceMap.get(peer).containsValue(false)){
+                return false;
+            }
+        }
+        return true;
+    }
+
     // map used for message typing
     static HashMap<String, byte[]> createMessageHashMap() {
         HashMap<String, byte[]> map = new HashMap<String, byte[]>();
@@ -833,7 +1067,7 @@ public class Peer2 {
         logger.info("Peer [" + peerID1 + "] has the preferred neighbors [" + Arrays.toString(peerList) + "]");
     }
 
-    static void logchangeOpUnchokeNeighbor(int peerID1, int opUnNeighbor) {
+    static void logOpUnchokeNeighbor(int peerID1, int opUnNeighbor) {
         logger.info("Peer [" + peerID1 + "] has the optimistically unchoked neighbor [" + opUnNeighbor + "]");
     }
 
@@ -866,4 +1100,5 @@ public class Peer2 {
     static void logDone(int peerID) {
         logger.info("Peer [" + peerID + "] has downloaded the complete file.");
     }
+
 }
